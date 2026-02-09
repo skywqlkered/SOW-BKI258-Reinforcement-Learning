@@ -1,48 +1,45 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-from gymnasium.envs.registration import register
 
 class CustomEnv(gym.Env):
     def __init__(self):
         super(CustomEnv, self).__init__()
     # Define action and observation spaces
-        self.action_space = spaces.Discrete(2) # Example:
-        # →two actions
-        self.observation_space = spaces.Box(low=0, high=10)
-        # →shape=(1,), dtype=np.float32)
+        self.action_space = spaces.Discrete(2) # Example: two actions
+        self.observation_space = spaces.Box(low=0, high=2, shape=(7,7), dtype=np.int8)
         self.state = None # Initialize state
-    def reset(self):
-        """Reset␣the␣environment␣to␣an␣initial␣state."""
-        self.state = np.array([5.0]) # Example initial
-        # →state
+    
+    def reset(self, seed, options): # type: ignore
+        """Reset the environment to an initial state."""
+        self.state = np.array([5.0]) # Example initial state
         return self.state, {}
-    
+            
     def step(self, action):
-        """Apply␣an␣action␣and␣return␣results."""
+        """Apply an action and return results."""
         reward = 1 if action == 1 else 0
-        self.state = self.state + (action- 0.5)
-        done = self.state[0] > 10 or self.state[0] < 0
-        return self.state, reward, done, False, {}
+        if self.state is not None:
+            self.state = self.state + (action- 0.5)
+            done = self.state[0] > 10 or self.state[0] < 0
+            return self.state, reward, done, False, {}
+        else: raise ValueError("State is not defined")
+        
     def render(self):
-        """Render␣the␣environment␣(optional)."""
-        print(f"Current␣state:␣{self.state}")
+        """Render the environment (optional)."""
+        print(f"Current state: {self.state}")
+    
     def close(self):
-        """Clean␣up␣resources␣(optional)."""
+        """Clean up resources (optional)."""
         pass
-    
-    
-register(id="CustomEnv-v0", entry_point="__main__:CustomEnv")
 
 
-#Create the environment
-env = gym.make("CustomEnv-v0")
-# Interact with the environment
-obs, info = env.reset()
-for _ in range(10):
-    action = env.action_space.sample() # Random action
-    obs, reward, done, truncated, info = env.step(action)
-    env.render()
-    if done:
-        break
-env.close()
+# 0 0 0 0 0 0 0
+# 0 0 0 0 0 0 0
+# 0 0 0 0 0 0 0
+# 0 1 2 3 0 d 0
+# 0 0 0 0 0 0 0
+# 0 0 0 0 0 0 0
+# 0 0 0 0 0 0 0
+
+# self.worm: list[tuple] = [(),(), ()]
+# self.dirt: tuple = () 
