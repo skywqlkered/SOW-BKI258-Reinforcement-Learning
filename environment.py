@@ -91,6 +91,16 @@ class MouseEnv(gym.Env):
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
         Apply an action to the environment.
+        Args:
+            action: Int, specifies the direction the mouse moves in.
+        
+        Returns:
+            self._get_obs(), Observation
+            reward: Int, The reward the mouse got for the action
+            done: Bool, True if the mouse got the cheese in the hole, false otherwise
+            False, Truncated is always false since the mouse cannot go out-of-bounce and there is no timelimit.
+            {}: empty dictionary, there is no need for auxiliary diagnostic information yet.
+
 
         0: Up, 1: Right, 2: Down, 3: Left
         """
