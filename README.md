@@ -33,14 +33,14 @@ The goal is to push the cheese (c) into the hole (h) at the top-right corner of 
 - **2**: Move/Push Down
 - **3**: Move/Push Left
 
-$total\_actions = 4$
+Total Actions $= 4$
 
 ### State Space
 - Mouse can be in $12$ positions
 - Cheese can be in $11$ remaining positions
 - Plus $1$ terminal state (cheese in hole)
 
-$total\_states = 12 \cdot 11 + 1 = 133$
+Total States $= 12 \cdot 11 + 1 = 133$
 
 ### Rewards
 - **Win reward**: +100 (cheese pushed into hole)
