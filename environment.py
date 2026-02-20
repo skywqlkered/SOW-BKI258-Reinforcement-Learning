@@ -7,6 +7,9 @@ class MouseEnv(gym.Env):
     cols = 4
     rows = 3
 
+    # Define movement: {action: (row_change, col_change)}
+    moves = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
+
     # Define rewards and punishment
     step_punishment = -1
     impossible_action_punishment = -2
@@ -36,7 +39,7 @@ class MouseEnv(gym.Env):
         Total states = (rows * cols mouse positions * (rows * cols - 1) cheese positions) + 1 goal state.
         Returned values are in the range [0, observation_space.n - 1].
         """
-        # If the cheese is in the hole, succesful terminal state (highest index)
+        # If the cheese is in the hole, successful terminal state (highest index)
         if self.won:
             return (self.cols * self.rows) * (self.cols * self.rows - 1)
 
@@ -134,8 +137,7 @@ class MouseEnv(gym.Env):
             return 0
         
         # Define movement: {action: (row_change, col_change)}
-        moves = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
-        dr, dc = moves[action]
+        dr, dc = cls.moves[action]
 
         # Calculate where the mouse wants to go
         new_m = [m_row + dr, m_col + dc]
@@ -162,6 +164,68 @@ class MouseEnv(gym.Env):
         
         return reward
 
+    @classmethod
+    def get_next_state(cls, obs: int, action: int) -> int:
+        """
+        Calculate the next step for the current state and action.
+        Implements the same step structure as in step, but without changing the state.
+        """
+
+        mouse_pos, cheese_pos, won = MouseEnv.get_state_from_obs(obs)
+        dr, dc = cls.moves[action]
+
+        # Calculate where the mouse wants to go
+        new_m = [mouse_pos[0] + dr, mouse_pos[1] + dc]
+
+        # Mouse hit a wall -> impossible, do nothing
+        if not (0 <= new_m[0] < cls.rows and 0 <= new_m[1] < cls.cols):
+            return cls.get_obs(mouse_pos, cheese_pos, won)
+
+        # If the mouse tries to push cheese
+        elif new_m == cheese_pos:
+
+            # Calculate where the cheese would go
+            new_c = [cheese_pos[0] + dr, cheese_pos[1] + dc]
+
+            # If the cheese gets pushed to the win position
+            if new_c == [-1, cls.cols - 1]:
+                return cls.get_obs(new_m, new_c, True)
+
+            # If cheese stays on board
+            elif 0 <= new_c[0] < cls.rows and 0 <= new_c[1] < cls.cols:
+                return cls.get_obs(new_m, new_c, won)
+
+            # Cheese hit a wall -> impossible, do nothing
+            else:
+                return cls.get_obs(mouse_pos, cheese_pos, won)
+
+        # Normal Mouse Move (no push)
+        else:
+            return cls.get_obs(new_m, cheese_pos, won)
+
+    @classmethod
+    def get_obs(cls, mouse_pos: list[int], cheese_pos: list[int], won: bool) -> int:
+        """
+        Converts the current board state into a single integer.
+        Total states = (rows * cols mouse positions * (rows * cols - 1) cheese positions) + 1 goal state.
+        Returned values are in the range [0, observation_space.n - 1].
+        """
+        # If the cheese is in the hole, successful terminal state (highest index)
+        if won:
+            return (cls.cols * cls.rows) * (cls.cols * cls.rows - 1)
+
+        # Convert 2D coordinates to 1D indices
+        m_idx = mouse_pos[0] * cls.cols + mouse_pos[1]  # type: ignore
+        c_idx = cheese_pos[0] * cls.cols + cheese_pos[1]  # type: ignore
+
+        # Lower cheese index by one if it is bigger than the mouse index,
+        # to remove the state in which they are on top of each other.
+        if c_idx > m_idx:
+            c_idx -= 1
+
+        # Return the final index
+        return (m_idx * (cls.cols * cls.rows - 1)) + c_idx
+
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
         Apply an action to the environment.
@@ -169,11 +233,11 @@ class MouseEnv(gym.Env):
             action: Int, specifies the direction the mouse moves in.
         
         Returns:
-            Any: idk
+            Int: The observation of the new state using self._get_obs()
             Float: The reward the mouse got for the action
             Bool: True if the mouse got the cheese in the hole, false otherwise
-            Bool: Truncated is always false since the mouse cannot go out-of-bounce and there is no timelimit.
-            dict: empty dictionary, there is no need for auxiliary diagnostic information yet.
+            Bool: Truncated is always false since the mouse cannot go out-of-bounds and there is no time-limit.
+            Dict: empty dictionary, there is no need for auxiliary diagnostic information yet.
 
 
         0: Up, 1: Right, 2: Down, 3: Left
