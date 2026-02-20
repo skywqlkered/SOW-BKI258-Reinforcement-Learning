@@ -9,21 +9,23 @@ class MouseEnv(gym.Env):
         super(MouseEnv, self).__init__()
 
         # Action space: 0:Up, 1:Right, 2:Down, 3:Left
-        self.action_space = spaces.Discrete(4)
+        self.num_of_actions = 4
+        self.action_space = spaces.Discrete(self.num_of_actions)
         
         # Observation space: (4*3) mouse positions * ((4*3)-1) cheese positions + 1 win state
         self.cols = 4
         self.rows = 3
-        self.observation_space = spaces.Discrete((self.cols * self.rows) * (self.cols * self.rows - 1) + 1)
-
+        self.num_of_states = (self.cols * self.rows) * (self.cols * self.rows - 1) + 1
+        self.observation_space = spaces.Discrete(self.num_of_states)
+        
         # Initialize state
         self.mouse_pos = None
         self.cheese_pos = None
         self.won = False
 
         # Define rewards and punishment
-        self.step_punishment = -1.0
-        self.impossible_action_punishment = -2.0
+        self.step_punishment = -1
+        self.impossible_action_punishment = -2
         self.lose_punishment = -50
         self.win_reward = 100
 
@@ -48,6 +50,25 @@ class MouseEnv(gym.Env):
             
         # Return the final index
         return (m_idx * (self.cols * self.rows - 1)) + c_idx
+    
+    def get_state_from_obs(self, obs: int) -> tuple[list[int], list[int], bool]:
+        """
+        Converts an observation integer back into the corresponding mouse and cheese positions, and win state.
+        This is the inverse of _get_obs.
+        """
+        if obs == (self.cols * self.rows) * (self.cols * self.rows - 1):
+            return None, None, True # type: ignore
+        
+        m_idx = obs // (self.cols * self.rows - 1)
+        c_idx = obs % (self.cols * self.rows - 1)
+
+        if c_idx >= m_idx:
+            c_idx += 1
+
+        m_row, m_col = divmod(m_idx, self.cols)
+        c_row, c_col = divmod(c_idx, self.cols)
+
+        return [m_row, m_col], [c_row, c_col], False
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[Any, dict[str, Any]]:
         """
@@ -87,7 +108,19 @@ class MouseEnv(gym.Env):
 
         # Return obs, info
         return self._get_obs(), {}
-            
+
+    def get_reward(self) -> float:
+        """
+        Calculate the reward for the current state and action.
+        Implements the same reward structure as in step, but without changing the state.
+        """
+        # If the cheese is in the hole, return win reward
+        if self.won:
+            return self.win_reward
+
+        # Otherwise, return step punishment
+        return self.step_punishment
+
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
         Apply an action to the environment.
