@@ -128,6 +128,13 @@ class MouseEnv(gym.Env):
         """
         Calculate the reward for the current state and action.
         Implements the same reward structure as in step, but without changing the state.
+
+        Args:
+            state (int): the observation of the current state.
+            action (int): the action to take.
+
+        Returns:
+            reward (float): the reward for the transition.
         """        
         # Convert state back to mouse and cheese positions
         (m_row, m_col), (c_row, c_col), won = cls.get_state_from_obs(state)
@@ -169,6 +176,13 @@ class MouseEnv(gym.Env):
         """
         Calculate the next step for the current state and action.
         Implements the same step structure as in step, but without changing the state.
+
+        Args:
+            obs (int): The observation of the current state.
+            action (int): the action to take.
+
+        Returns:
+            new_obs (int): The observation of the new state.
         """
 
         mouse_pos, cheese_pos, won = MouseEnv.get_state_from_obs(obs)
@@ -209,6 +223,14 @@ class MouseEnv(gym.Env):
         Converts the current board state into a single integer.
         Total states = (rows * cols mouse positions * (rows * cols - 1) cheese positions) + 1 goal state.
         Returned values are in the range [0, observation_space.n - 1].
+
+        Args:
+            mouse_pos ([int, int]): A list containing the row and column index of the mouse.
+            cheese_pos ([int, int]): A list containing the row and column index of the cheese.
+            won (bool): True if the observation corresponds to the win state, False otherwise.
+
+        Returns:
+            obs (int): The observation of the given state.
         """
         # If the cheese is in the hole, successful terminal state (highest index)
         if won:
