@@ -4,6 +4,8 @@ import numpy as np
 from typing import Any
 
 class MouseEnv(gym.Env):
+    cols = 4
+    rows = 3
     def __init__(self):
         "Defines the action and observation spaces"
         super(MouseEnv, self).__init__()
@@ -13,8 +15,6 @@ class MouseEnv(gym.Env):
         self.action_space = spaces.Discrete(self.num_of_actions)
         
         # Observation space: (4*3) mouse positions * ((4*3)-1) cheese positions + 1 win state
-        self.cols = 4
-        self.rows = 3
         self.num_of_states = (self.cols * self.rows) * (self.cols * self.rows - 1) + 1
         self.observation_space = spaces.Discrete(self.num_of_states)
         
@@ -51,22 +51,33 @@ class MouseEnv(gym.Env):
         # Return the final index
         return (m_idx * (self.cols * self.rows - 1)) + c_idx
     
-    def get_state_from_obs(self, obs: int) -> tuple[list[int], list[int], bool]:
+    @classmethod
+    def get_state_from_obs(cls, obs: int) -> tuple[list[int] | None, list[int] | None, bool]:
         """
         Converts an observation integer back into the corresponding mouse and cheese positions, and win state.
         This is the inverse of _get_obs.
-        """
-        if obs == (self.cols * self.rows) * (self.cols * self.rows - 1):
-            return None, None, True # type: ignore
         
-        m_idx = obs // (self.cols * self.rows - 1)
-        c_idx = obs % (self.cols * self.rows - 1)
+        Args:
+            obs (int): The observation integer to convert.
+        
+        Returns:
+            A tuple containing:
+            - mouse_pos (list[int] | None): The [row, col] position of the mouse, or None if in win state.
+            - cheese_pos (list[int] | None): The [row, col] position of the cheese, or None if in win state.
+            - won (bool): True if the observation corresponds to the win state, False otherwise.
+
+        """
+        if obs == (cls):
+            return None, None, True # type: ignore
+        m_idx = obs // (cls.cols * cls.row
+            s - 1)
+        c_idx = obs % (cls.cols * cls.rows - 1)
 
         if c_idx >= m_idx:
             c_idx += 1
 
-        m_row, m_col = divmod(m_idx, self.cols)
-        c_row, c_col = divmod(c_idx, self.cols)
+        m_row, m_col = divmod(m_idx, cls.cols)
+        c_row, c_col = divmod(c_idx, cls.cols)
 
         return [m_row, m_col], [c_row, c_col], False
 
@@ -109,17 +120,18 @@ class MouseEnv(gym.Env):
         # Return obs, info
         return self._get_obs(), {}
 
-    def get_reward(self) -> float:
+    @classmethod
+    def get_reward(cls, state: int, action: int) -> float:
         """
         Calculate the reward for the current state and action.
         Implements the same reward structure as in step, but without changing the state.
         """
-        # If the cheese is in the hole, return win reward
-        if self.won:
-            return self.win_reward
-
-        # Otherwise, return step punishment
-        return self.step_punishment
+        # If the state is the winning state, return win reward
+        if state == (4 * 3) * (4 * 3 - 1):
+            return 100
+        
+        # Convert state back to mouse and cheese positions
+        cls.get_state_from_obs(state)
 
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
