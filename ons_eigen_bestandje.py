@@ -1,7 +1,8 @@
     
 from environment import MouseEnv
+from numpy import inf
 
-def run_value_iteration(environment: MouseEnv):
+def run_value_iteration(environment: MouseEnv) -> dict[int, float]:
     states = range(environment.num_of_states)
     print("Running value iteration...")
 
@@ -25,7 +26,27 @@ def get_action_value(environment: MouseEnv, state, action, values):
         action_value += probability * (reward + environment.gamma * values[next_state])
     return action_value
 
+def create_policy(env: MouseEnv, values: dict[int, float]) -> dict[int, int]:
+    """
+    Returns a policy based on the result of the value iteration algorithm
 
+    Args:
+        env (MouseEnv): the environment
+        values (dict[int, float]): the value iteration results
+
+    Returns:
+        policy (dict[int, int]): the policy, which returns the action for each state with the max value
+    """
+    policy: dict[int, int] = {}
+    for state in range(env.num_of_states):
+        best_action: tuple[int, float] = (-1, -inf)
+        for action in range(env.num_of_actions):
+            action_value = values[MouseEnv.get_next_state(state, action)]
+            if action_value > best_action[1]:
+                best_action = (action, action_value)
+        policy[state] = best_action[0]
+
+    return policy
 
 if __name__ == "__main__":
     env = MouseEnv()
