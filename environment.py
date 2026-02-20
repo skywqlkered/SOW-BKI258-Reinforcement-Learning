@@ -6,6 +6,13 @@ from typing import Any
 class MouseEnv(gym.Env):
     cols = 4
     rows = 3
+
+    # Define rewards and punishment
+    step_punishment = -1
+    impossible_action_punishment = -2
+    lose_punishment = -50
+    win_reward = 100
+
     def __init__(self):
         "Defines the action and observation spaces"
         super(MouseEnv, self).__init__()
@@ -22,12 +29,6 @@ class MouseEnv(gym.Env):
         self.mouse_pos = None
         self.cheese_pos = None
         self.won = False
-
-        # Define rewards and punishment
-        self.step_punishment = -1
-        self.impossible_action_punishment = -2
-        self.lose_punishment = -50
-        self.win_reward = 100
 
     def _get_obs(self):
         """
@@ -61,16 +62,15 @@ class MouseEnv(gym.Env):
             obs (int): The observation integer to convert.
         
         Returns:
-            A tuple containing:
-            - mouse_pos (list[int] | None): The [row, col] position of the mouse, or None if in win state.
-            - cheese_pos (list[int] | None): The [row, col] position of the cheese, or None if in win state.
-            - won (bool): True if the observation corresponds to the win state, False otherwise.
+            mouse_pos (list[int] | None): The [row, col] position of the mouse, or None if in win state.
+            cheese_pos (list[int] | None): The [row, col] position of the cheese, or None if in win state.
+            won (bool): True if the observation corresponds to the win state, False otherwise.
 
         """
-        if obs == (cls):
-            return None, None, True # type: ignore
-        m_idx = obs // (cls.cols * cls.row
-            s - 1)
+        if obs == (cls.cols * cls.rows) * (cls.cols * cls.rows - 1):
+            return None, None, True
+        
+        m_idx = obs // (cls.cols * cls.rows - 1)
         c_idx = obs % (cls.cols * cls.rows - 1)
 
         if c_idx >= m_idx:
@@ -125,13 +125,42 @@ class MouseEnv(gym.Env):
         """
         Calculate the reward for the current state and action.
         Implements the same reward structure as in step, but without changing the state.
-        """
-        # If the state is the winning state, return win reward
-        if state == (4 * 3) * (4 * 3 - 1):
-            return 100
-        
+        """        
         # Convert state back to mouse and cheese positions
-        cls.get_state_from_obs(state)
+        (m_row, m_col), (c_row, c_col), won = cls.get_state_from_obs(state)
+
+        # If already in win state, no reward for any action
+        if won:
+            return 0
+        
+        # Define movement: {action: (row_change, col_change)}
+        moves = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
+        dr, dc = moves[action]
+
+        # Calculate where the mouse wants to go
+        new_m = [m_row + dr, m_col + dc]
+        # Give a small punishment each step to incentivize shortest path
+        reward = cls.step_punishment
+        # Mouse hit a wall -> impossible, do nothing
+        if not (0 <= new_m[0] < cls.rows and 0 <= new_m[1] < cls.cols):
+            reward = cls.impossible_action_punishment
+        # If the mouse tries to push cheese
+        elif new_m == [c_row, c_col]:
+            # Calculate where the cheese would go
+            new_c = [c_row + dr, c_col + dc]
+            # If the cheese gets pushed to the win position
+            if new_c == [-1, cls.cols - 1]:
+                reward = cls.win_reward
+            # If cheese stays on board
+            elif (0 <= new_c[0] < cls.rows and 0 <= new_c[1] < cls.cols):
+                # If cheese gets pushed to a fatal state (first column or last row)
+                if new_c[1] == 0 or new_c[0] == cls.rows - 1:
+                    reward = cls.lose_punishment
+            # Cheese hit a wall -> impossible, do nothing
+            else:
+                reward = cls.impossible_action_punishment
+        
+        return reward
 
     def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
         """
@@ -214,3 +243,6 @@ class MouseEnv(gym.Env):
     def close(self):
         """Cleanup (not required for this simple environment)."""
         pass
+
+if __name__ == "__main__":
+    print(MouseEnv.get_reward(0, 0))
