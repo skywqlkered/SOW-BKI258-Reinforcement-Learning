@@ -65,10 +65,10 @@ class MouseEnv(gym.Env):
             obs (int): The observation integer to convert.
         
         Returns:
-            mouse_pos (list[int] | None): The [row, col] position of the mouse, or None if in win state.
-            cheese_pos (list[int] | None): The [row, col] position of the cheese, or None if in win state.
-            won (bool): True if the observation corresponds to the win state, False otherwise.
-
+        - mouse_pos: (list[int] | None): The [row, col] position of the mouse, or None if in win state.
+        - cheese_pos: (list[int] | None): The [row, col] position of the cheese, or None if in win state.
+        - won (bool): True if the observation corresponds to the win state, False otherwise.
+        
         """
         if obs == (cls.cols * cls.rows) * (cls.cols * cls.rows - 1):
             return None, None, True
@@ -94,8 +94,8 @@ class MouseEnv(gym.Env):
             options: Additional options for reset (optional).
         
         Returns:
-            obs: Initial observation as an integer.
-            info: Empty dictionary.
+        - obs: Initial observation as an integer.
+        - info: Empty dictionary.
         """
         super().reset(seed=seed, options=options)
 
@@ -137,7 +137,8 @@ class MouseEnv(gym.Env):
             reward (float): the reward for the transition.
         """        
         # Convert state back to mouse and cheese positions
-        (m_row, m_col), (c_row, c_col), won = cls.get_state_from_obs(state)
+
+        (m_row, m_col), (c_row, c_col), won = cls.get_state_from_obs(state) # type: ignore if the collumns are none the winstate is true.
 
         # If already in win state, no reward for any action
         if won:
@@ -186,6 +187,8 @@ class MouseEnv(gym.Env):
         """
 
         mouse_pos, cheese_pos, won = MouseEnv.get_state_from_obs(obs)
+        if not mouse_pos or not cheese_pos:
+            raise ValueError("Tried to calculate step with missing position.")
         dr, dc = cls.moves[action]
 
         # Calculate where the mouse wants to go
@@ -255,11 +258,11 @@ class MouseEnv(gym.Env):
             action: Int, specifies the direction the mouse moves in.
         
         Returns:
-            Int: The observation of the new state using self._get_obs()
-            Float: The reward the mouse got for the action
-            Bool: True if the mouse got the cheese in the hole, false otherwise
-            Bool: Truncated is always false since the mouse cannot go out-of-bounds and there is no time-limit.
-            Dict: empty dictionary, there is no need for auxiliary diagnostic information yet.
+        - Int: The observation of the new state using self._get_obs()
+        - Float: The reward the mouse got for the action
+        - Bool: True if the mouse got the cheese in the hole, false otherwise
+        - Bool: Truncated is always false since the mouse cannot go out-of-bounds and there is no time-limit.
+        - Dict: empty dictionary, there is no need for auxiliary diagnostic information yet.
 
 
         0: Up, 1: Right, 2: Down, 3: Left
