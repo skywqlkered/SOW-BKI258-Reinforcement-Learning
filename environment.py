@@ -305,6 +305,3 @@ class MouseEnv(gym.Env):
 
         # Return the final index
         return (m_idx * (cls.cols * cls.rows - 1)) + c_idx
-
-if __name__ == "__main__":
-    print(MouseEnv.get_reward(0, 0))
