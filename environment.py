@@ -6,6 +6,8 @@ from typing import Any
 class MouseEnv(gym.Env):
     cols = 4
     rows = 3
+    num_of_actions = 4
+    num_of_states = (cols * rows) * (cols * rows - 1) + 1
 
     # Define movement: {action: (row_change, col_change)}
     moves = {0: (-1, 0), 1: (0, 1), 2: (1, 0), 3: (0, -1)}
@@ -21,11 +23,9 @@ class MouseEnv(gym.Env):
         super(MouseEnv, self).__init__()
 
         # Action space: 0:Up, 1:Right, 2:Down, 3:Left
-        self.num_of_actions = 4
         self.action_space = spaces.Discrete(self.num_of_actions)
         
         # Observation space: (4*3) mouse positions * ((4*3)-1) cheese positions + 1 win state
-        self.num_of_states = (self.cols * self.rows) * (self.cols * self.rows - 1) + 1
         self.observation_space = spaces.Discrete(self.num_of_states)
         
         # Initialize state

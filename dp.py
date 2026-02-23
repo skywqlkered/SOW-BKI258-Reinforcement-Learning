@@ -1,10 +1,10 @@
 from environment import MouseEnv
 import numpy as np
-import random
 
 # Shared helper function
 
 def get_action_value(state, action, values, gamma):
+    # Get reward and next state for this state-action pair
     reward = MouseEnv.get_reward(state, action)
     state_prime = MouseEnv.get_next_state(state, action)
 
@@ -32,14 +32,13 @@ def policy_index_to_positions(policy: dict, rows: int, cols: int):
 
 # Policy iteration functions
 
-def evaluate_policy(policy, env: MouseEnv, theta, gamma):
+def evaluate_policy(policy, theta, gamma):
     """Evaluate a fixed policy with iterative policy evaluation.
 
     Repeatedly applies Bellman expectation updates until the maximum value change across states is smaller than `theta`.
 
     Args:
         policy (dict): Mapping from state index to selected action.
-        env (MouseEnv): Environment model exposing transition and reward helpers.
         theta (float): Convergence threshold for value updates.
         gamma (float): Discount factor for future returns.
 
@@ -48,7 +47,7 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
     - list[float]: History of maximum value changes (deltas) across iterations.
     """
     # Initialize all state values to zero
-    Qs: dict[float] = {state: 0.0 for state in range(env.num_of_states)} # type:ignore
+    Qs: dict[int, float] = {state: 0.0 for state in range(MouseEnv.num_of_states)}
     
     # Track stuff for plotting and reporting
     delta_history = []
@@ -61,10 +60,10 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
         delta = 0
 
         # Go over every state
-        for state in range(env.num_of_states):
+        for state in range(MouseEnv.num_of_states):
 
             # Skip terminal states since they have no decision and no future return
-            if env.is_terminal_obs(state):
+            if MouseEnv.is_terminal_obs(state):
                 continue
 
             # Get old value
@@ -88,7 +87,7 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
     return Qs, delta_history
 
 
-def improve_policy(value_function: dict, policy: dict, env: MouseEnv, gamma: float):
+def improve_policy(value_function: dict, policy: dict, gamma: float):
     """Improve a policy greedily with respect to a value function.
 
     For each non-terminal state, evaluates all actions with one-step lookahead and selects the action with the highest estimated return.
@@ -96,7 +95,6 @@ def improve_policy(value_function: dict, policy: dict, env: MouseEnv, gamma: flo
     Args:
         value_function (dict): Mapping from state index to estimated value.
         policy (dict): Current policy mapping state index to action.
-        env (MouseEnv): Environment model exposing transition and reward helpers.
         gamma (float): Discount factor for future returns.
 
     Returns:
@@ -107,23 +105,23 @@ def improve_policy(value_function: dict, policy: dict, env: MouseEnv, gamma: flo
     improved_policy = {}
 
     # Iterate over every state in the state space
-    for state in range(env.num_of_states):
+    for state in range(MouseEnv.num_of_states):
         old_action = policy[state]
 
         # Terminal states do not need policy improvement
-        if env.is_terminal_obs(state):
+        if MouseEnv.is_terminal_obs(state):
             improved_policy[state] = old_action
             continue
 
         action_values = {}
 
         # Go over each action from this state and get the reward and next state
-        for action in range(env.num_of_actions):
-            reward = env.get_reward(state, action)
-            state_prime = env.get_next_state(state, action)
+        for action in range(MouseEnv.num_of_actions):
+            reward = MouseEnv.get_reward(state, action)
+            state_prime = MouseEnv.get_next_state(state, action)
 
             # If transition is terminal, do not bootstrap from the value function
-            if reward == env.lose_punishment or reward == env.win_reward:
+            if reward == MouseEnv.lose_punishment or reward == MouseEnv.win_reward:
                 action_total = reward
 
             # Otherwise, use one-step Bellman lookahead: r + gamma * V(s')
@@ -146,97 +144,159 @@ def improve_policy(value_function: dict, policy: dict, env: MouseEnv, gamma: flo
     return improved_policy, policy_stable
 
 
-def policy_iteration(env: MouseEnv, theta: float, gamma: float, max_iterations: int = 1000):
+def policy_iteration(theta: float, gamma: float, max_iterations: int = 1000, track_history: bool = False, state_history: list[int] | None = None):
     """Run policy iteration until convergence or iteration cap.
 
     Alternates policy evaluation and policy improvement, while tracking diagnostics that can be plotted in the notebook.
 
     Args:
-        env (MouseEnv): Environment model exposing transition and reward helpers.
         theta (float): Convergence threshold used by policy evaluation.
         gamma (float): Discount factor for future returns.
         max_iterations (int, optional): Maximum number of outer policy
             iteration steps. Defaults to 1000.
 
     Returns:
-    - dict: Final policy mapping from state index to action.
-    - dict: Final state-value function mapping from state index to value.
-    - list[float]: History of maximum value changes (deltas) during each policy evaluation step.
-    - bool: Whether the final policy is stable (True) or iteration stopped due to reaching the iteration cap (False).
+    - If track_history is False:
+        - dict: Final policy mapping from state index to action.
+        - dict: Final state-value function mapping from state index to value.
+    - If track_history is True:
+        - the same values as above, plus
+        - list[float]: History of maximum value changes (deltas) during each policy evaluation step.
+        - dict[int, list[float]]: History of tracked-state values across policy-iteration steps.
     """
-    # Start with a random policy for all states
-    policy = {state: random.randint(0, env.num_of_actions - 1) for state in range(env.num_of_states)}
+    # Start with a deterministic policy for all states
+    policy = {state: 0 for state in range(MouseEnv.num_of_states)}
 
     # Keep terminal states' actions fixed to a valid default value
-    for state in range(env.num_of_states):
-        if env.is_terminal_obs(state):
+    for state in range(MouseEnv.num_of_states):
+        if MouseEnv.is_terminal_obs(state):
             policy[state] = 0
 
     # Track stuff for plotting and reporting
-    value_function = {state: 0.0 for state in range(env.num_of_states)}
-    stable_policy = False
-    evaluation_delta_history = []
+    value_function = {state: 0.0 for state in range(MouseEnv.num_of_states)}
+    if track_history:
+        if state_history is None:
+            state_history = [state for state in range(MouseEnv.num_of_states) if not MouseEnv.is_terminal_obs(state)]
+        value_history: dict[int, list[float]] = {state: [] for state in state_history}
+        evaluation_delta_history = []
 
     # Start the capped policy iteration loop
     for _ in range(max_iterations):
 
         # Evaluate the current policy to obtain its state values
-        value_function, delta_history = evaluate_policy(policy=policy, env=env, theta=theta, gamma=gamma)
-        evaluation_delta_history.append(delta_history[-1] if len(delta_history) > 0 else 0.0)
+        value_function, delta_history = evaluate_policy(policy=policy, theta=theta, gamma=gamma)
+
+        # Track stuff for plotting and reporting
+        if track_history:
+            for state in state_history: # type: ignore
+                value_history[state].append(value_function[state]) # type: ignore
+            evaluation_delta_history.append(delta_history[-1] if len(delta_history) > 0 else 0.0) # type: ignore
 
         # Improve policy greedily with respect to the evaluated value function
-        policy, policy_stable = improve_policy(value_function=value_function, policy=policy, env=env, gamma=gamma)
+        policy, policy_stable = improve_policy(value_function=value_function, policy=policy, gamma=gamma)
 
         # Stop when the policy is stable
         if policy_stable:
-            stable_policy = True
             break
 
     # Return final policy, final value function, and histories for plotting
-    return policy, value_function, evaluation_delta_history, stable_policy
+    if track_history:
+        return policy, value_function, evaluation_delta_history, value_history # type: ignore
+
+    return policy, value_function
 
 # Value iteration functions
 
-def value_iteration(environment: MouseEnv, theta: float = 1e-8, gamma: float = 1.0) -> dict[int, float]:
-    """Compute optimal state values with value iteration."""
-    states = range(environment.num_of_states)
+def value_iteration(theta: float, gamma: float, track_history: bool = False, state_history: list[int] | None = None) -> dict[int, float] | tuple[dict[int, float], list[float], dict[int, list[float]]]:
+    """Compute optimal state values with value iteration.
+
+    Repeatedly applies Bellman optimality updates to each state until the maximum value change is smaller than `theta`.
+
+    Args:
+        theta (float): Convergence threshold for value updates.
+        gamma (float): Discount factor for future returns.
+        track_history (bool, optional): If True, also returns convergence and selected-state traces. Defaults to False.
+        state_history (list[int] | None, optional): States for which value evolution is tracked. If None and track_history=True, all non-terminal states are tracked.
+
+    Returns:
+        dict[int, float] | tuple[dict[int, float], list[float], dict[int, list[float]]]:
+            - If track_history is False: values mapping from state index to estimated value.
+            - If track_history is True: (values, delta_history, value_history) where:
+              - delta_history is list of max value changes per iteration
+              - value_history is dict mapping tracked states to their value evolution
+    """
+    # Initialize all state values to zero
+    states = range(MouseEnv.num_of_states)
     values = {state: 0.0 for state in states}
 
+    # Set up tracking if requested
+    if track_history:
+        if state_history is None:
+            state_history = [state for state in states if not MouseEnv.is_terminal_obs(state)]
+        delta_history: list[float] = []
+        value_history: dict[int, list[float]] = {state: [] for state in state_history}
+
+    # Start Bellman optimality iteration loop until convergence
     delta = float("inf")
     while delta >= theta:
         delta = 0.0
+        
+        # Go over every state and apply Bellman optimality update
         for state in states:
-            if environment.is_terminal_obs(state):
+            # Terminal states have zero value with no decision to make
+            if MouseEnv.is_terminal_obs(state):
                 values[state] = 0.0
                 continue
 
+            # Get old value for convergence check
             q = values[state]
-            action_values = [get_action_value(state, action, values, gamma) for action in range(environment.num_of_actions)]
+            
+            # Evaluate all actions and select the best one
+            action_values = [get_action_value(state, action, values, gamma) for action in range(MouseEnv.num_of_actions)]
             values[state] = max(action_values)
 
+            # Track maximum value change for convergence criterion
             delta = max(delta, abs(q - values[state]))
+
+        # Store diagnostics for plotting and reporting
+        if track_history:
+            delta_history.append(delta) # type: ignore
+            for state in state_history: # type: ignore
+                value_history[state].append(values[state]) # type: ignore
+
+    # Return values and optional histories
+    if track_history:
+        return values, delta_history, value_history # type: ignore
 
     return values
 
-def create_policy_from_values(env: MouseEnv, values: dict[int, float], gamma: float = 1.0) -> dict[int, int]:
-    """
-    Returns a policy based on the result of the value iteration algorithm
+def create_policy_from_values(values: dict[int, float], gamma: float = 1.0) -> dict[int, int]:
+    """Create a greedy policy from a value function using one-step lookahead.
+
+    For each non-terminal state, selects the action with the highest estimated return.
 
     Args:
-        env (MouseEnv): the environment
-        values (dict[int, float]): the value iteration results
-        gamma (float): discount factor
+        values (dict[int, float]): Value function mapping state index to estimated value.
+        gamma (float, optional): Discount factor for future returns. Defaults to 1.0.
 
     Returns:
-        policy (dict[int, int]): the policy, which returns the action for each state with the max value
+        dict[int, int]: Policy mapping state index to the best action (greedy with respect to the value function).
     """
     policy: dict[int, int] = {}
-    for state in range(env.num_of_states):
+    
+    # Iterate over every state in the state space
+    for state in range(MouseEnv.num_of_states):
         best_action: tuple[int, float] = (-1, -np.inf)
-        for action in range(env.num_of_actions):
+        
+        # Go over each action and evaluate its one-step return
+        for action in range(MouseEnv.num_of_actions):
             action_value = get_action_value(state, action, values, gamma)
+            
+            # Track the action with the highest estimated return
             if action_value > best_action[1]:
                 best_action = (action, action_value)
+        
+        # Assign best action to this state's policy
         policy[state] = best_action[0]
 
     return policy
