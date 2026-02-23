@@ -3,7 +3,7 @@ import numpy as np
 
 # Shared helper function
 
-def get_action_value(state, action, values, gamma):
+def get_action_value(state, action, value_function, gamma):
     # Get reward and next state for this state-action pair
     reward = MouseEnv.get_reward(state, action)
     state_prime = MouseEnv.get_next_state(state, action)
@@ -14,7 +14,7 @@ def get_action_value(state, action, values, gamma):
 
     # Otherwise, apply Bellman expectation update for deterministic transition
     else:
-        action_total = reward + (gamma * values[state_prime])
+        action_total = reward + (gamma * value_function[state_prime])
     
     return action_total
 
@@ -207,7 +207,38 @@ def policy_iteration(theta: float, gamma: float, max_iterations: int = 1000, tra
 
 # Value iteration functions
 
-def value_iteration(theta: float, gamma: float, track_history: bool = False, state_history: list[int] | None = None) -> dict[int, float] | tuple[dict[int, float], list[float], dict[int, list[float]]]:
+def _create_policy_from_values(value_function: dict[int, float], gamma: float = 1.0) -> dict[int, int]:
+    """Create a greedy policy from a value function using one-step lookahead.
+
+    For each non-terminal state, selects the action with the highest estimated return.
+
+    Args:
+        value_function (dict[int, float]): Value function mapping state index to estimated value.
+        gamma (float, optional): Discount factor for future returns. Defaults to 1.0.
+
+    Returns:
+        dict[int, int]: Policy mapping state index to the best action (greedy with respect to the value function).
+    """
+    policy: dict[int, int] = {}
+    
+    # Iterate over every state in the state space
+    for state in range(MouseEnv.num_of_states):
+        best_action: tuple[int, float] = (-1, -np.inf)
+        
+        # Go over each action and evaluate its one-step return
+        for action in range(MouseEnv.num_of_actions):
+            action_value = get_action_value(state, action, value_function, gamma)
+            
+            # Track the action with the highest estimated return
+            if action_value > best_action[1]:
+                best_action = (action, action_value)
+        
+        # Assign best action to this state's policy
+        policy[state] = best_action[0]
+
+    return policy
+
+def value_iteration(theta: float, gamma: float, track_history: bool = False, state_history: list[int] | None = None):
     """Compute optimal state values with value iteration.
 
     Repeatedly applies Bellman optimality updates to each state until the maximum value change is smaller than `theta`.
@@ -219,15 +250,17 @@ def value_iteration(theta: float, gamma: float, track_history: bool = False, sta
         state_history (list[int] | None, optional): States for which value evolution is tracked. If None and track_history=True, all non-terminal states are tracked.
 
     Returns:
-        dict[int, float] | tuple[dict[int, float], list[float], dict[int, list[float]]]:
-            - If track_history is False: values mapping from state index to estimated value.
-            - If track_history is True: (values, delta_history, value_history) where:
-              - delta_history is list of max value changes per iteration
-              - value_history is dict mapping tracked states to their value evolution
+    - If track_history is False:
+        - dict: Final policy mapping from state index to action.
+        - dict: Final state-value function mapping from state index to value.
+    - If track_history is True:
+        - the same values as above, plus
+        - list[float]: History of maximum value changes (deltas) during each policy evaluation step.
+        - dict[int, list[float]]: History of tracked-state values across policy-iteration steps.
     """
     # Initialize all state values to zero
     states = range(MouseEnv.num_of_states)
-    values = {state: 0.0 for state in states}
+    value_function = {state: 0.0 for state in states}
 
     # Set up tracking if requested
     if track_history:
@@ -245,58 +278,30 @@ def value_iteration(theta: float, gamma: float, track_history: bool = False, sta
         for state in states:
             # Terminal states have zero value with no decision to make
             if MouseEnv.is_terminal_obs(state):
-                values[state] = 0.0
+                value_function[state] = 0.0
                 continue
 
             # Get old value for convergence check
-            q = values[state]
+            q = value_function[state]
             
             # Evaluate all actions and select the best one
-            action_values = [get_action_value(state, action, values, gamma) for action in range(MouseEnv.num_of_actions)]
-            values[state] = max(action_values)
+            action_values = [get_action_value(state, action, value_function, gamma) for action in range(MouseEnv.num_of_actions)]
+            value_function[state] = max(action_values)
 
             # Track maximum value change for convergence criterion
-            delta = max(delta, abs(q - values[state]))
+            delta = max(delta, abs(q - value_function[state]))
 
         # Store diagnostics for plotting and reporting
         if track_history:
             delta_history.append(delta) # type: ignore
             for state in state_history: # type: ignore
-                value_history[state].append(values[state]) # type: ignore
+                value_history[state].append(value_function[state]) # type: ignore
+
+    # Create a greedy policy from the converged optimal value function
+    policy = _create_policy_from_values(value_function, gamma)
 
     # Return values and optional histories
     if track_history:
-        return values, delta_history, value_history # type: ignore
+        return policy, value_function, delta_history, value_history # type: ignore
 
-    return values
-
-def create_policy_from_values(values: dict[int, float], gamma: float = 1.0) -> dict[int, int]:
-    """Create a greedy policy from a value function using one-step lookahead.
-
-    For each non-terminal state, selects the action with the highest estimated return.
-
-    Args:
-        values (dict[int, float]): Value function mapping state index to estimated value.
-        gamma (float, optional): Discount factor for future returns. Defaults to 1.0.
-
-    Returns:
-        dict[int, int]: Policy mapping state index to the best action (greedy with respect to the value function).
-    """
-    policy: dict[int, int] = {}
-    
-    # Iterate over every state in the state space
-    for state in range(MouseEnv.num_of_states):
-        best_action: tuple[int, float] = (-1, -np.inf)
-        
-        # Go over each action and evaluate its one-step return
-        for action in range(MouseEnv.num_of_actions):
-            action_value = get_action_value(state, action, values, gamma)
-            
-            # Track the action with the highest estimated return
-            if action_value > best_action[1]:
-                best_action = (action, action_value)
-        
-        # Assign best action to this state's policy
-        policy[state] = best_action[0]
-
-    return policy
+    return policy, value_function
