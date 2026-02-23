@@ -2,6 +2,21 @@ from environment import MouseEnv
 import numpy as np
 import random
 
+# Shared helper function
+
+def get_action_value(state, action, values, gamma):
+    reward = MouseEnv.get_reward(state, action)
+    state_prime = MouseEnv.get_next_state(state, action)
+
+    # If transition is terminal, do not bootstrap from next-state value
+    if reward == MouseEnv.lose_punishment or reward == MouseEnv.win_reward:
+        action_total = reward
+
+    # Otherwise, apply Bellman expectation update for deterministic transition
+    else:
+        action_total = reward + (gamma * values[state_prime])
+    
+    return action_total
 
 def policy_index_to_positions(policy: dict, rows: int, cols: int):
     "Change policy dict with state indices as keys to a 4D array indexed by cheese and mouse positions"
@@ -15,6 +30,7 @@ def policy_index_to_positions(policy: dict, rows: int, cols: int):
         position_policy[c_row, c_col, m_row, m_col] = action
     return position_policy
 
+# Policy iteration functions
 
 def evaluate_policy(policy, env: MouseEnv, theta, gamma):
     """Evaluate a fixed policy with iterative policy evaluation.
@@ -32,7 +48,7 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
     - list[float]: History of maximum value changes (deltas) across iterations.
     """
     # Initialize all state values to zero
-    Vs: dict[float] = {state: 0.0 for state in range(env.num_of_states)} # type:ignore
+    Qs: dict[float] = {state: 0.0 for state in range(env.num_of_states)} # type:ignore
     
     # Track stuff for plotting and reporting
     delta_history = []
@@ -52,32 +68,24 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
                 continue
 
             # Get old value
-            v = Vs[state]
+            q = Qs[state]
 
             # Get policy action and one-step model outcome
             state_total = 0
             action = policy[state]
-            reward = env.get_reward(state, action)
-            state_prime = env.get_next_state(state, action)
-
-            # If transition is terminal, do not bootstrap from next-state value
-            if reward == env.lose_punishment or reward == env.win_reward:
-                action_total = reward
-
-            # Otherwise, apply Bellman expectation update for deterministic transition
-            else:
-                action_total = reward + (gamma * Vs[state_prime]) # p(state | action) = 1, so no probabilities included
+            
+            action_total = get_action_value(state, action, Qs, gamma)
 
             # Write updated value and update max delta
             state_total = action_total
-            Vs[state] = state_total
-            delta = max(delta, abs(v - Vs[state]))
+            Qs[state] = state_total
+            delta = max(delta, abs(q - Qs[state]))
 
         # Store iteration delta for plotting and diagnostics
         delta_history.append(delta)
 
     # Return converged value function and convergence history
-    return Vs, delta_history
+    return Qs, delta_history
 
 
 def improve_policy(value_function: dict, policy: dict, env: MouseEnv, gamma: float):
@@ -186,3 +194,49 @@ def policy_iteration(env: MouseEnv, theta: float, gamma: float, max_iterations: 
 
     # Return final policy, final value function, and histories for plotting
     return policy, value_function, evaluation_delta_history, stable_policy
+
+# Value iteration functions
+
+def value_iteration(environment: MouseEnv, theta: float = 1e-8, gamma: float = 1.0) -> dict[int, float]:
+    """Compute optimal state values with value iteration."""
+    states = range(environment.num_of_states)
+    values = {state: 0.0 for state in states}
+
+    delta = float("inf")
+    while delta >= theta:
+        delta = 0.0
+        for state in states:
+            if environment.is_terminal_obs(state):
+                values[state] = 0.0
+                continue
+
+            q = values[state]
+            action_values = [get_action_value(state, action, values, gamma) for action in range(environment.num_of_actions)]
+            values[state] = max(action_values)
+
+            delta = max(delta, abs(q - values[state]))
+
+    return values
+
+def create_policy_from_values(env: MouseEnv, values: dict[int, float], gamma: float = 1.0) -> dict[int, int]:
+    """
+    Returns a policy based on the result of the value iteration algorithm
+
+    Args:
+        env (MouseEnv): the environment
+        values (dict[int, float]): the value iteration results
+        gamma (float): discount factor
+
+    Returns:
+        policy (dict[int, int]): the policy, which returns the action for each state with the max value
+    """
+    policy: dict[int, int] = {}
+    for state in range(env.num_of_states):
+        best_action: tuple[int, float] = (-1, -np.inf)
+        for action in range(env.num_of_actions):
+            action_value = get_action_value(state, action, values, gamma)
+            if action_value > best_action[1]:
+                best_action = (action, action_value)
+        policy[state] = best_action[0]
+
+    return policy
