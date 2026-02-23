@@ -1,6 +1,5 @@
 from environment import MouseEnv
 from numpy import inf
-from typing import Mapping
 
 
 def run_value_iteration(environment: MouseEnv, theta: float = 1e-8, gamma: float = 1.0) -> dict[int, float]:
