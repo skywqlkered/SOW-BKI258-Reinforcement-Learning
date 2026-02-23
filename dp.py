@@ -55,6 +55,7 @@ def evaluate_policy(policy, env: MouseEnv, theta, gamma):
             v = Vs[state]
 
             # Get policy action and one-step model outcome
+            
             state_total = 0
             action = policy[state]
             reward = env.get_reward(state, action)
