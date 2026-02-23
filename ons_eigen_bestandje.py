@@ -1,23 +1,30 @@
-    
 from environment import MouseEnv
 from numpy import inf
+from typing import Mapping
 
-def run_value_iteration(environment: MouseEnv) -> dict[int, float]:
+
+def run_value_iteration(environment: MouseEnv, theta: float = 1e-8, gamma: float = 1.0) -> dict[int, float]:
+    """Compute optimal state values with value iteration."""
     states = range(environment.num_of_states)
-    print("Running value iteration...")
+    values = {state: 0.0 for state in states}
 
-    print("Actions:", environment.action_space)
-
-    values = {state : 0.0 for state in states}
-    delta = 0
-    while delta >= 0:
-        delta = 0
+    delta = float("inf")
+    while delta >= theta:
+        delta = 0.0
         for state in states:
-            v = values[state]
+            if environment.is_terminal_obs(state):
+                values[state] = 0.0
+                continue
 
-            values[state] = max(get_action_value(environment, state, action, values) for action in range(environment.num_of_actions))
+            v = values[state]
+            values[state] = max(
+                get_action_value(environment, state, action, values, gamma)
+                for action in range(environment.num_of_actions)
+            )
             delta = max(delta, abs(v - values[state]))
+
     return values
+
 
 def get_action_value(environment: MouseEnv, state, action, values):
     action_value = 0
@@ -25,6 +32,7 @@ def get_action_value(environment: MouseEnv, state, action, values):
         reward = environment.get_reward(state, action, next_state)
         action_value += probability * (reward + environment.gamma * values[next_state])
     return action_value
+
 
 def create_policy(env: MouseEnv, values: dict[int, float]) -> dict[int, int]:
     """
@@ -47,6 +55,7 @@ def create_policy(env: MouseEnv, values: dict[int, float]) -> dict[int, int]:
         policy[state] = best_action[0]
 
     return policy
+
 
 if __name__ == "__main__":
     env = MouseEnv()
