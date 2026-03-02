@@ -18,18 +18,6 @@ def get_action_value(state, action, value_function, gamma):
     
     return action_total
 
-def policy_index_to_positions(policy: dict, rows: int, cols: int):
-    "Change policy dict with state indices as keys to a 4D array indexed by cheese and mouse positions"
-    position_policy = np.full((rows, cols, rows, cols), np.nan)
-    for state, action in policy.items():
-        if MouseEnv.is_terminal_obs(state):
-            continue
-        mouse_pos, cheese_pos, won = MouseEnv.get_state_from_obs(state)
-        m_row, m_col = mouse_pos # type: ignore
-        c_row, c_col = cheese_pos # type: ignore
-        position_policy[c_row, c_col, m_row, m_col] = action
-    return position_policy
-
 # Policy iteration functions
 
 def evaluate_policy(policy, theta, gamma):
