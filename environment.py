@@ -2,6 +2,8 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from typing import Any
+import random
+
 
 class MouseEnv(gym.Env):
     cols = 4
@@ -232,6 +234,23 @@ class MouseEnv(gym.Env):
             next_mouse = new_m
 
         return next_mouse, next_cheese, next_won, reward, done
+
+    @classmethod
+    def generate_episode(cls, policy, max_steps = 100) -> list[tuple[int, int, float]]:
+        state = random.randrange(0, cls.num_of_states)
+        steps = 0
+        episode = []
+        while not cls.is_terminal_obs(state) and steps < max_steps:
+            action = policy[state]
+            reward = cls.get_reward(state, action)
+            episode.append((state, action, reward))
+
+            next_state = cls.get_next_state(state, action)
+            state = next_state 
+
+            steps += 1
+        
+        return episode
 
     @classmethod
     def get_reward(cls, state: int, action: int) -> float:

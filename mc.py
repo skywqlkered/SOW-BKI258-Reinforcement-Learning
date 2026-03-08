@@ -1,6 +1,5 @@
 from dp import get_action_value
 from environment import MouseEnv
-import random
 
 
 def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float):
@@ -26,9 +25,14 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
 
     # Generate and process multiple episodes
     for _ in range(num_of_episodes):
+<<<<<<< Updated upstream
         # Generate a single episode following the current policy
         episode = generate_episode(policy)
         # Initialize the return accumulator
+=======
+        
+        episode = env.generate_episode(policy=policy)
+>>>>>>> Stashed changes
         g = 0
 
         # Track visited states for first-visit Monte Carlo
@@ -55,6 +59,7 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
             values[state] = 0.0
     return values
 
+<<<<<<< Updated upstream
 
 def generate_episode(policy, max_steps=100) -> list[tuple[int, int, float]]:
     """
