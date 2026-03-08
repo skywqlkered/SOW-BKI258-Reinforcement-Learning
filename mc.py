@@ -167,3 +167,7 @@ def montecarlo(num_of_episodes, discount):
         policy = new_policy.copy()
 
     return policy, values
+=======
+
+
+>>>>>>> Stashed changes
