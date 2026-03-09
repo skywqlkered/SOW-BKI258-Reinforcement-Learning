@@ -18,6 +18,7 @@ def epsilon_greedy(state: int, epsilon: float, Qtable: np.typing.NDArray) -> int
     else:
         return int(np.argmax(Qtable[state]))
 
+
 def greedy(state: int, Qtable: np.typing.NDArray) -> int:
     """Returns a greedy action
 
@@ -28,24 +29,23 @@ def greedy(state: int, Qtable: np.typing.NDArray) -> int:
     Returns:
         action (int): the next action to take
     """
-    return np.argmax(Qtable[state])
+    return int(np.argmax(Qtable[state]))
+
 
 def run_qlearning(
-    num_of_episodes: int,
-    learning_rate: float,
-    discount_rate: float,
-    epsilon: float) -> np.typing.NDArray:
+    num_of_episodes: int, learning_rate: float, discount_rate: float, epsilon: float
+) -> np.typing.NDArray:
     """Runs the Q-learning algorithm and returns Q-values
 
-        Args:
-            num_of_episodes (int): amount of episode runs
-            learning_rate (float): the learning rate
-            discount_rate (float): the discount factor
-            epsilon (float): the epsilon greedy value
+    Args:
+        num_of_episodes (int): amount of episode runs
+        learning_rate (float): the learning rate
+        discount_rate (float): the discount factor
+        epsilon (float): the epsilon greedy value
 
-        Returns:
-            Q-values (np.typing.NDArray): A table of Q values of state and action
-        """
+    Returns:
+        Q-values (np.typing.NDArray): A table of Q values of state and action
+    """
 
     Q = np.zeros((MouseEnv.num_of_states, MouseEnv.num_of_actions))
     for _ in range(num_of_episodes):
@@ -55,7 +55,9 @@ def run_qlearning(
 
         while not MouseEnv.is_terminal_obs(state):
 
-            reward = MouseEnv.get_reward(state, action)  # reward of taking action in current state
+            reward = MouseEnv.get_reward(
+                state, action
+            )  # reward of taking action in current state
 
             next_state = MouseEnv.get_next_state(state, action=action)
             next_b_action = epsilon_greedy(state=next_state, epsilon=epsilon, Qtable=Q)
@@ -69,6 +71,7 @@ def run_qlearning(
             action = next_b_action
     return Q  # type: ignore
 
+
 def qlearning(num_of_episodes, alpha, discount, epsilon):
     """Runs the sarsa learning algorithm and returns a policy
 
@@ -76,16 +79,14 @@ def qlearning(num_of_episodes, alpha, discount, epsilon):
         policy (dict): mapping of state to action
     """
     Q_qlearning = run_qlearning(
-        num_of_episodes,
-        learning_rate=alpha,
-        discount_rate=discount,
-        epsilon=epsilon
+        num_of_episodes, learning_rate=alpha, discount_rate=discount, epsilon=epsilon
     )
     qlearning_policy = np.argmax(Q_qlearning, axis=1)
     policy = {}
     for i, value in enumerate(qlearning_policy):
         policy[i] = int(value)
     return policy, Q_qlearning
+
 
 def run_SARSA(
     num_of_episodes: int,
