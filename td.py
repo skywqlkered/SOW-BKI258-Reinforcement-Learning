@@ -24,7 +24,7 @@ def run_SARSA(
     learning_rate: float,
     discount_rate: float,
     epsilon: float,
-) -> tuple[np.typing.NDArray, int]:
+) -> np.typing.NDArray:
     """Runs the SARSA learning algorithm and returns Q-values
 
     Args:
@@ -39,9 +39,8 @@ def run_SARSA(
 
     """
     Q = np.zeros((MouseEnv.num_of_states, MouseEnv.num_of_actions))
-
     for _ in range(num_of_episodes):
-        steps = 0
+
         state = np.random.randint(0, MouseEnv.num_of_states)
         action = epsilon_greedy(state=state, epsilon=epsilon, Qtable=Q)
         total_reward = 0
@@ -63,12 +62,8 @@ def run_SARSA(
             state = next_state
             action = next_action
 
-            steps += 1
             total_reward += reward
-    try:
-        return Q, steps  # type: ignore
-    except Exception:
-        raise ValueError("Maybe set the num of episodes to something thats not 0...")
+    return Q  # type: ignore
 
 
 def SARSA(num_of_episodes, alpha, discount, epsilon):
@@ -77,7 +72,7 @@ def SARSA(num_of_episodes, alpha, discount, epsilon):
     Returns:
         policy (dict): mapping of state to action
     """
-    Q_sarsa, steps = run_SARSA(
+    Q_sarsa = run_SARSA(
         num_of_episodes,
         learning_rate=alpha,
         discount_rate=discount,
@@ -87,7 +82,7 @@ def SARSA(num_of_episodes, alpha, discount, epsilon):
     policy = {}
     for i, value in enumerate(SARSA_policy):
         policy[i] = int(value)
-    return policy, Q_sarsa, steps
+    return policy, Q_sarsa
 
 
 def sarsinator():
@@ -95,7 +90,7 @@ def sarsinator():
     alpha = 0.5
     discount = 0.5
     epsilon = 0.0
-    policy, Q_sarsa, steps = SARSA(episodes, alpha, discount, epsilon)
+    policy, Q_sarsa = SARSA(episodes, alpha, discount, epsilon)
     print(policy)
 
 
