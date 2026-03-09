@@ -75,7 +75,7 @@ def SARSA(env, num_of_episodes, alpha, discount, epsilon):
     """Runs the sarsa learning algorithm and returns a policy
 
     Returns:
-        policy: _description_
+        policy (dict): mapping of state to action
     """
     Q_sarsa = run_SARSA(
         env,
@@ -93,7 +93,7 @@ def SARSA(env, num_of_episodes, alpha, discount, epsilon):
 
 def sarsinator():
     env = MouseEnv()
-    episodes = 10
+    episodes = 10000
     alpha = 0.5
     discount = 0.5
     epsilon = 0.0
