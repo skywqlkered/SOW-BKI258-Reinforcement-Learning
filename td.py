@@ -18,6 +18,7 @@ def epsilon_greedy(state: int, epsilon: float, Qtable: np.typing.NDArray) -> int
     else:
         return int(np.argmax(Qtable[state]))
 
+
 def greedy(state: int, Qtable: np.typing.NDArray) -> int:
     """Returns a greedy action
 
@@ -28,7 +29,8 @@ def greedy(state: int, Qtable: np.typing.NDArray) -> int:
     Returns:
         action (int): the next action to take
     """
-    return np.argmax(Qtable[state])
+    return int(np.argmax(Qtable[state]))
+
 
 def run_qlearning(
     num_of_episodes: int,
@@ -45,9 +47,9 @@ def run_qlearning(
             epsilon (float): the epsilon greedy value
             epsilon_decay (float): the decay rate for epsilon after each episode
 
-        Returns:
-            Q-values (np.typing.NDArray): A table of Q values of state and action
-        """
+    Returns:
+        Q-values (np.typing.NDArray): A table of Q values of state and action
+    """
 
     Q = np.zeros((MouseEnv.num_of_states, MouseEnv.num_of_actions))
     for _ in range(num_of_episodes):
@@ -58,7 +60,9 @@ def run_qlearning(
 
         while not MouseEnv.is_terminal_obs(state):
 
-            reward = MouseEnv.get_reward(state, action)  # reward of taking action in current state
+            reward = MouseEnv.get_reward(
+                state, action
+            )  # reward of taking action in current state
 
             next_state = MouseEnv.get_next_state(state, action=action)
             next_b_action = epsilon_greedy(state=next_state, epsilon=epsilon, Qtable=Q)
@@ -90,6 +94,7 @@ def qlearning(num_of_episodes, alpha, discount, epsilon, epsilon_decay=1.0):
     for i, value in enumerate(qlearning_policy):
         policy[i] = int(value)
     return policy, Q_qlearning
+
 
 def run_SARSA(
     num_of_episodes: int,
