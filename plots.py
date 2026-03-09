@@ -252,3 +252,12 @@ def plot_dp_comparisons(
     )
     plt.tight_layout()
     return fig, axes
+
+def plot_epsilon_decay(epsilon: float, epsilon_decay:float, episodes: int):
+    X = np.arange(0, episodes)
+    y = epsilon * epsilon_decay**X
+    plt.plot(X, y)
+    plt.title(f"Epsilon over {episodes} episodes, with a decay rate of {epsilon_decay}")
+    plt.xlabel("Episode")
+    plt.ylabel("Epsilon")
+    plt.grid()

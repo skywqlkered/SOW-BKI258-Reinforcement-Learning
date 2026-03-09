@@ -34,7 +34,8 @@ def run_qlearning(
     num_of_episodes: int,
     learning_rate: float,
     discount_rate: float,
-    epsilon: float) -> np.typing.NDArray:
+    epsilon: float,
+    epsilon_decay: float) -> np.typing.NDArray:
     """Runs the Q-learning algorithm and returns Q-values
 
         Args:
@@ -42,6 +43,7 @@ def run_qlearning(
             learning_rate (float): the learning rate
             discount_rate (float): the discount factor
             epsilon (float): the epsilon greedy value
+            epsilon_decay (float): the decay rate for epsilon after each episode
 
         Returns:
             Q-values (np.typing.NDArray): A table of Q values of state and action
@@ -52,6 +54,7 @@ def run_qlearning(
 
         state = np.random.randint(0, MouseEnv.num_of_states)
         action = epsilon_greedy(state=state, epsilon=epsilon, Qtable=Q)
+        epsilon *= epsilon_decay
 
         while not MouseEnv.is_terminal_obs(state):
 
@@ -69,7 +72,7 @@ def run_qlearning(
             action = next_b_action
     return Q  # type: ignore
 
-def qlearning(num_of_episodes, alpha, discount, epsilon):
+def qlearning(num_of_episodes, alpha, discount, epsilon, epsilon_decay=1.0):
     """Runs the sarsa learning algorithm and returns a policy
 
     Returns:
@@ -79,7 +82,8 @@ def qlearning(num_of_episodes, alpha, discount, epsilon):
         num_of_episodes,
         learning_rate=alpha,
         discount_rate=discount,
-        epsilon=epsilon
+        epsilon=epsilon,
+        epsilon_decay=epsilon_decay
     )
     qlearning_policy = np.argmax(Q_qlearning, axis=1)
     policy = {}
@@ -92,6 +96,7 @@ def run_SARSA(
     learning_rate: float,
     discount_rate: float,
     epsilon: float,
+    epsilon_decay: float
 ) -> np.typing.NDArray:
     """Runs the SARSA learning algorithm and returns Q-values
 
@@ -101,6 +106,7 @@ def run_SARSA(
         learning_rate (float): the learning rate
         discount_factor (float): the discount factor
         epsilon (float): the epsilon greedy value
+        epsilon_decay (float): the decay rate for epsilon after each episode
 
     Returns:
         Q-values (np.typing.NDArray): A table of Q values of state and action
@@ -111,6 +117,7 @@ def run_SARSA(
 
         state = np.random.randint(0, MouseEnv.num_of_states)
         action = epsilon_greedy(state=state, epsilon=epsilon, Qtable=Q)
+        epsilon *= epsilon_decay
         total_reward = 0
         done = False
 
@@ -134,7 +141,7 @@ def run_SARSA(
     return Q  # type: ignore
 
 
-def SARSA(num_of_episodes, alpha, discount, epsilon):
+def SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay=1.0):
     """Runs the sarsa learning algorithm and returns a policy
 
     Returns:
@@ -145,6 +152,7 @@ def SARSA(num_of_episodes, alpha, discount, epsilon):
         learning_rate=alpha,
         discount_rate=discount,
         epsilon=epsilon,
+        epsilon_decay=1.0
     )
     SARSA_policy = np.argmax(Q_sarsa, axis=1)
     policy = {}
