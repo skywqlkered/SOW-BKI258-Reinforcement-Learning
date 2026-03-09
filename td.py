@@ -83,16 +83,3 @@ def SARSA(num_of_episodes, alpha, discount, epsilon):
     for i, value in enumerate(SARSA_policy):
         policy[i] = int(value)
     return policy, Q_sarsa
-
-
-def sarsinator():
-    episodes = 10000
-    alpha = 0.5
-    discount = 0.5
-    epsilon = 0.0
-    policy, Q_sarsa = SARSA(episodes, alpha, discount, epsilon)
-    print(policy)
-
-
-if __name__ == "__main__":
-    sarsinator()
