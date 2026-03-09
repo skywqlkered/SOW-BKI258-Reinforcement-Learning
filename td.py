@@ -2,8 +2,7 @@ from environment import MouseEnv
 import numpy as np
 
 
-
-def epsilon_greedy(state: int, epsilon: float, Qtable: np.typing.NDArray, env) - > int:
+def epsilon_greedy(state: int, epsilon: float, Qtable: np.typing.NDArray, env) -> int:
     """Returns an action based on the epsilon value
 
     Args:
@@ -19,10 +18,30 @@ def epsilon_greedy(state: int, epsilon: float, Qtable: np.typing.NDArray, env) -
     else:
         return int(np.argmax(Qtable[state]))
 
-def run_SARSA(env: MouseEnv, num_of_episodes: int, learning_rate: float, discount_rate: float, epsilon: float)
+
+def run_SARSA(
+    env: MouseEnv,
+    num_of_episodes: int,
+    learning_rate: float,
+    discount_rate: float,
+    epsilon: float,
+) -> np.typing.NDArray:
+    """Runs the SARSA learning algorithm and returns Q-values
+
+    Args:
+        env (MouseEnv): the environment
+        num_of_episodes (int): amount of episode runs
+        learning_rate (float): the learning rate
+        discount_factor (float): the discount factor
+        epsilon (float): the epsilon greedy value
+
+    Returns:
+        Q-values (np.typing.NDArray): A table of Q values of state and action
+
+    """
     Q = np.zeros((env.num_of_states, env.num_of_actions))
 
-    for episode in range(num_of_episodes):
+    for _ in range(num_of_episodes):
         steps = 0
         state = np.random.randint(0, env.num_of_states)
         action = epsilon_greedy(state=state, epsilon=epsilon, Qtable=Q, env=env)
@@ -30,45 +49,57 @@ def run_SARSA(env: MouseEnv, num_of_episodes: int, learning_rate: float, discoun
         done = False
 
         while not done:
+
+            done = env.is_terminal_obs(state)
+            reward = env.get_reward(
+                state, action
+            )  # reward of  taking action in current state
             next_state = env.get_next_state(state, action=action)
             next_action = epsilon_greedy(
-            state=next_state, epsilon=epsilon, Qtable=Q, env=env)
-            done = env.is_terminal_obs(state)
-            reward = env.get_reward(state, action)
-            
-            Q[state, action] = learning_rate * (reward + discount_rate * Q[next_state, next_action] - Q[state, action])
-            steps += 1
+                state=next_state, epsilon=epsilon, Qtable=Q, env=env
+            )
+
+            TD_target = reward + discount_rate * Q[next_state, next_action]
+            TD_error = TD_target - Q[state, action]
+            Q[state, action] += learning_rate * TD_error
+
             state = next_state
             action = next_action
+
+            steps += 1
             total_reward += reward
     return Q
 
 
 def SARSA(env, num_of_episodes, alpha, discount, epsilon):
-    """
+    """Runs the sarsa learning algorithm and returns a policy
 
     Returns:
-        tuple:
-            - dict[int, int]: Converged policy mapping from state index to action.
-            - dict[int, float]: Final state-value function mapping from state index to estimated value.
+        policy: _description_
     """
-    # Initialize policy randomly for all states
-    policy = {
-        state: np.random.randint(0, MouseEnv.num_of_actions - 1)
-        for state in range(MouseEnv.num_of_states)
-    }
-
-    # Alternate between policy evaluation and policy improvement until convergence
-    while True:
-        values = run_SARSA(env, num_of_episodes, alpha, discount, epsilon)
-        new_policy = control(values, discount)
-        # Convergence check: stop if the policy is stable (unchanged)
-        if new_policy == policy:
-            break
-        policy = new_policy.copy()
-
-    return policy, values
-
-    
+    Q_sarsa = run_SARSA(
+        env,
+        num_of_episodes,
+        learning_rate=alpha,
+        discount_rate=discount,
+        epsilon=epsilon,
+    )
+    SARSA_policy = np.argmax(Q_sarsa, axis=1)
+    policy = {}
+    for i, value in enumerate(SARSA_policy):
+        policy[i] = int(value)
+    return policy
 
 
+def sarsinator():
+    env = MouseEnv()
+    episodes = 10
+    alpha = 0.5
+    discount = 0.5
+    epsilon = 0.0
+    policy = SARSA(env, episodes, alpha, discount, epsilon)
+    print(policy)
+
+
+if __name__ == "__main__":
+    sarsinator()

@@ -1,38 +1,36 @@
 from dp import get_action_value
 from environment import MouseEnv
+import random
 
 
 def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float):
     """
     Estimate state values by averaging returns from sampled episodes under the given policy.
-    
+
     For each episode:
     - Generate an episode using the policy from a random starting state
     - For each state in the episode, calculate the return (discounted cumulative reward)
     - Track the return for each state-visitation
     - After all episodes, estimate each state's value as the average of all returns for that state
-    
+
     Args:
         policy (dict[int, int]): Mapping from state index to selected action.
         num_of_episodes (int): Number of episodes to generate for estimation.
         gamma (float): Discount factor for future returns.
-    
+
     Returns:
         dict[int, float]: Mapping from state index to estimated value (average return from policy).
     """
     # Initialize a dictionary to store all returns (G) for each state across episodes
-    returns: dict[int, list[float]] = {state: [] for state in range(MouseEnv.num_of_states)}
+    returns: dict[int, list[float]] = {
+        state: [] for state in range(MouseEnv.num_of_states)
+    }
 
     # Generate and process multiple episodes
     for _ in range(num_of_episodes):
-<<<<<<< Updated upstream
         # Generate a single episode following the current policy
         episode = generate_episode(policy)
         # Initialize the return accumulator
-=======
-        
-        episode = env.generate_episode(policy=policy)
->>>>>>> Stashed changes
         g = 0
 
         # Track visited states for first-visit Monte Carlo
@@ -45,7 +43,7 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
             # Update return using discounted reward: G = R + γ*G
             g = gamma * g + reward
             # For first-visit only: store the return if this is the first visit to the state in this episode
-            if state not in visited_states[:len(episode)]:
+            if state not in visited_states[: len(episode)]:
                 returns[state].append(g)
 
     # Compute state values as the average of collected returns
@@ -59,19 +57,18 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
             values[state] = 0.0
     return values
 
-<<<<<<< Updated upstream
 
 def generate_episode(policy, max_steps=100) -> list[tuple[int, int, float]]:
     """
     Generate a single episode by executing the given policy from a random starting state.
-    
+
     Follows the policy until reaching a terminal state or maximum steps is exceeded.
     Records (state, action, reward) transitions during the trajectory.
 
     Args:
         policy (dict[int, int]): Mapping from state index to action selected by the policy.
         max_steps (int, optional): Maximum number of steps before forcibly terminating the episode. Defaults to 100.
-    
+
     Returns:
         list[tuple[int, int, float]]: Sequence of (state, action, reward) tuples representing the episode trajectory.
     """
@@ -79,7 +76,7 @@ def generate_episode(policy, max_steps=100) -> list[tuple[int, int, float]]:
     state = random.randrange(0, MouseEnv.num_of_states)
     steps = 0
     episode = []
-    
+
     # Execute the policy until reaching a terminal state or max_steps
     while not MouseEnv.is_terminal_obs(state) and steps < max_steps:
         # Get the action prescribed by the policy for the current state
@@ -100,9 +97,9 @@ def generate_episode(policy, max_steps=100) -> list[tuple[int, int, float]]:
 
 def control(values: dict[int, float], discount: float):
     """Improve the policy greedily with respect to estimated state values.
-    
+
     For each state, selects the action with the highest estimated return using one-step lookahead.
-    
+
     Args:
         values (dict[int, float]): Mapping from state index to estimated value.
         discount (float): Discount factor for future returns.
@@ -117,8 +114,8 @@ def control(values: dict[int, float], discount: float):
     # Iterate over all states and select the best action for each
     for state in range(MouseEnv.num_of_states):
         best_action = None
-        best_value = float('-inf')
-        
+        best_value = float("-inf")
+
         # Evaluate all possible actions from this state using one-step lookahead
         for action in range(MouseEnv.num_of_actions):
             # Get the estimated return for taking this action: r + γ*V(s')
@@ -138,21 +135,24 @@ def control(values: dict[int, float], discount: float):
 def montecarlo(num_of_episodes, discount):
     """
     Run Monte Carlo control algorithm to find an optimal policy and state-value function.
-    
+
     Alternates between policy evaluation (via Monte Carlo prediction) and policy improvement
     until the policy converges (remains unchanged across an iteration).
-    
+
     Args:
         num_of_episodes (int): Number of episodes to generate during each policy evaluation step.
         discount (float): Discount factor for future returns.
 
     Returns:
-        tuple: 
+        tuple:
             - dict[int, int]: Converged policy mapping from state index to action.
             - dict[int, float]: Final state-value function mapping from state index to estimated value.
     """
     # Initialize policy randomly for all states
-    policy = {state: random.randint(0, MouseEnv.num_of_actions-1) for state in range(MouseEnv.num_of_states)}
+    policy = {
+        state: random.randint(0, MouseEnv.num_of_actions - 1)
+        for state in range(MouseEnv.num_of_states)
+    }
 
     # Alternate between policy evaluation and policy improvement until convergence
     while True:
@@ -167,7 +167,3 @@ def montecarlo(num_of_episodes, discount):
         policy = new_policy.copy()
 
     return policy, values
-=======
-
-
->>>>>>> Stashed changes
