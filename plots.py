@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
 from environment import MouseEnv
+from dp import policy_iteration
+from mc import track_montecarlo
+from td import track_SARSA
 
 # Plotting helper functions
 
@@ -261,3 +264,84 @@ def plot_epsilon_decay(epsilon: float, epsilon_decay:float, episodes: int):
     plt.xlabel("Episode")
     plt.ylabel("Epsilon")
     plt.grid()
+
+def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, epsilon = 0.5, epsilon_decay = 0.99):
+    list_of_rewards: list[list[float]]
+    _, list_of_rewards = track_montecarlo(num_of_episodes, discount)
+
+    midpoint = len(list_of_rewards) // 2
+    mc_rewards = [list_of_rewards[0],
+               list_of_rewards[midpoint],
+               list_of_rewards[-1]]
+
+    list_of_rewards: list[float]
+    _, list_of_rewards2 = track_SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay)
+
+    first_point = len(list_of_rewards2) // 3
+    second_point = 2 * len(list_of_rewards2) // 3
+    td_rewards = [list_of_rewards2[:first_point],
+                list_of_rewards2[first_point: second_point],
+                list_of_rewards2[second_point:]]
+
+    fig, axes = plt.subplots(2, 3, figsize=(13, 5))
+    colors = ["red", "orange", "green"]
+    mc_labels = ["First iteration",
+                 f"Iteration {midpoint} (midpoint)",
+                 "Last iteration"]
+    for ax, reward, color, label in zip(axes[0], mc_rewards, colors, mc_labels):
+        ax.scatter(range(len(reward)), reward, color=color, alpha=0.2, label="MC " + label)
+        ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward), color=color,
+                       linestyles="dashed")
+        ax.set_ylim(-200, 100)
+
+
+    td_labels = [f"First {first_point} episodes",
+                 f"{first_point}-{second_point} episodes",
+                 f"{second_point}-{len(list_of_rewards2)} episodes"]
+    for ax, reward, color, label in zip(axes[1], td_rewards, colors, td_labels):
+        ax.scatter(range(len(reward)), reward, color=color, alpha=0.2, label="TD " + label)
+        ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward),
+                  color=color, linestyles="dashed")
+        ax.set_ylim(-200, 100)
+
+    fig.suptitle("Cumulative Reward for episodes from the MC and TD Algorithms")
+    fig.supxlabel("Episodes")
+    fig.supylabel("Cumulative Reward")
+    fig.legend()
+    fig.show()
+
+def plot_root_mean_squared_errors():
+    theta = 1e-5
+    discount = 0.5
+    num_of_episodes = 1000
+    learning_rate = 0.5
+    epsilon = 0.5
+    epsilon_decay = 0.99
+
+    _, dp_values = policy_iteration(theta=theta, gamma=discount)
+    dp_values = list(dp_values.values())
+
+    mc_list_values, _ = track_montecarlo(num_of_episodes, discount)
+    mc_list_values = [list(mc_value.values()) for mc_value in mc_list_values]
+
+    SARSA_qtables, _ = track_SARSA(num_of_episodes, learning_rate, discount, epsilon, epsilon_decay)
+    td_list_values = [list(np.max(q_table, axis=1)) for q_table in SARSA_qtables]
+
+    mc_R = [float(np.mean(np.power(np.subtract(dp_values, mc_values), 2)))
+            for mc_values in mc_list_values]
+    td_R = [float(np.mean(np.power(np.subtract(dp_values, td_values), 2)))
+            for td_values in td_list_values]
+
+    x1 = range(len(mc_R))
+    x2 = range(len(td_R))
+    plt.plot(x1, mc_R, label="Monte Carlo")
+    plt.plot(x2, td_R, label="Temporal Difference")
+    plt.title("Mean squared error compared to policy iteration")
+    plt.xlabel("Iterations")
+    plt.ylabel("Mean squared error")
+    plt.legend()
+    plt.show()
+
+if __name__ == "__main__":
+    plot_cumulative_reward()
+    plot_root_mean_squared_errors()
