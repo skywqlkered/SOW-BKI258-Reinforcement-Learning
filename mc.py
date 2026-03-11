@@ -168,7 +168,7 @@ def montecarlo(num_of_episodes, discount):
 
     return policy, values
 
-def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float) -> tuple[dict[int, float], list[float]]:
+def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float) -> tuple[list[dict[int, float]], list[float]]:
     """
     Estimate state values by averaging returns from sampled episodes under the given policy.
 
@@ -192,6 +192,8 @@ def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, ga
     returns: dict[int, list[float]] = {
         state: [] for state in range(MouseEnv.num_of_states)
     }
+    values: dict[int, float] = {}
+    values_list: list[dict[int, float]] = []
     # Add list to store cumulative reward in
     list_rewards: list[float] = []
     # Generate and process multiple episodes
@@ -219,17 +221,17 @@ def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, ga
         # Add reward to rewards list
         list_rewards.append(cumulative_reward)
 
-    # Compute state values as the average of collected returns
-    values: dict[int, float] = {}
-    for state in range(MouseEnv.num_of_states):
-        if returns[state]:
-            # Average the returns collected for this state
-            values[state] = sum(returns[state]) / len(returns[state])
-        else:
-            # Unvisited states have zero value estimate
-            values[state] = 0.0
+        # Compute state values as the average of collected returns
+        for state in range(MouseEnv.num_of_states):
+            if returns[state]:
+                # Average the returns collected for this state
+                values[state] = sum(returns[state]) / len(returns[state])
+            else:
+                # Unvisited states have zero value estimate
+                values[state] = 0.0
+        values_list.append(values.copy())
 
-    return values, list_rewards
+    return values_list, list_rewards
 
 def track_montecarlo(num_of_episodes, discount) -> tuple[list[dict[int, float]], list[list[float]]]:
     """
@@ -261,9 +263,9 @@ def track_montecarlo(num_of_episodes, discount) -> tuple[list[dict[int, float]],
         values, rewards = track_montecarlo_prediction(policy, num_of_episodes, discount)
         # Store rewards, values from all episodes in the lists
         cumulative_rewards.append(rewards)
-        values_list.append(values)
+        values_list.extend(values)
         # Policy Improvement: Select greedy actions with respect to the estimated values
-        new_policy = control(values, discount)
+        new_policy = control(values[-1], discount)
         # Convergence check: stop if the policy is stable (unchanged)
         if new_policy == policy:
             break

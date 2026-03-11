@@ -266,6 +266,21 @@ def plot_epsilon_decay(epsilon: float, epsilon_decay:float, episodes: int):
     plt.grid()
 
 def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, epsilon = 0.5, epsilon_decay = 0.99):
+    """
+    Plots the cumulative reward for Monte Carlo and Temporal Difference at three different stages:
+    - At the start, where no learning has happened.
+    - Midway the learning process.
+    - At the end, where the full learning has happened.
+
+    Note: The TD algorithm greatly outperforms the amount of episodes computed, so less would be necessary.
+
+    Args:
+        num_of_episodes (int): the amount of episodes for MC and TD.
+        discount (float) the discount factor, devaluing states further in the future [0, 1] -> the higher
+        alpha (float): the learning rate.
+        epsilon (float): the degree of exploration [0, 1] -> the higher, the more random.
+        epsilon_decay (float): the base of decay of exploration [0, 1] -> the higher, the slower the decay.
+    """
     list_of_rewards: list[list[float]]
     _, list_of_rewards = track_montecarlo(num_of_episodes, discount)
 
@@ -311,6 +326,10 @@ def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, 
     fig.show()
 
 def plot_root_mean_squared_errors():
+    """
+    Plots the root-mean-square error for Monte Carlo and Temporal Difference.
+    Note: the monte carlo plot is spiky because every batch of 1000 episodes starts with a new value set.
+    """
     theta = 1e-5
     discount = 0.5
     num_of_episodes = 1000
@@ -327,20 +346,24 @@ def plot_root_mean_squared_errors():
     SARSA_qtables, _ = track_SARSA(num_of_episodes, learning_rate, discount, epsilon, epsilon_decay)
     td_list_values = [list(np.max(q_table, axis=1)) for q_table in SARSA_qtables]
 
-    mc_R = [float(np.mean(np.power(np.subtract(dp_values, mc_values), 2)))
+    mc_r = [float(np.mean(np.power(np.subtract(dp_values, mc_values), 2)))
             for mc_values in mc_list_values]
-    td_R = [float(np.mean(np.power(np.subtract(dp_values, td_values), 2)))
+    td_r = [float(np.mean(np.power(np.subtract(dp_values, td_values), 2)))
             for td_values in td_list_values]
 
-    x1 = range(len(mc_R))
-    x2 = range(len(td_R))
-    plt.plot(x1, mc_R, label="Monte Carlo")
-    plt.plot(x2, td_R, label="Temporal Difference")
-    plt.title("Mean squared error compared to policy iteration")
-    plt.xlabel("Iterations")
-    plt.ylabel("Mean squared error")
-    plt.legend()
-    plt.show()
+    shared_max: float = max(max(mc_r), max(td_r))
+    shared_max *= 1.1
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+    axes[0].plot(range(len(mc_r)), mc_r, color="blue", label="Monte Carlo")
+    axes[0].set_ylim(0, shared_max)
+    axes[1].plot(range(len(td_r)), td_r, color="green", label="Temporal Difference")
+    axes[1].set_ylim(0, shared_max)
+    fig.suptitle("Mean squared error compared to policy iteration")
+    fig.supxlabel("Episodes")
+    fig.supylabel("Mean squared error")
+    fig.legend()
+    fig.show()
 
 if __name__ == "__main__":
     plot_cumulative_reward()

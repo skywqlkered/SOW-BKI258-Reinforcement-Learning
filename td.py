@@ -187,7 +187,7 @@ def track_run_SARSA(
 
     Q = np.zeros((MouseEnv.num_of_states, MouseEnv.num_of_actions))
     reward_list: list[float] = []
-    list_of_Q: list = []
+    list_of_Q: list[np.ndarray] = []
     for _ in range(num_of_episodes):
         total_reward: float = 0
         state = np.random.randint(0, MouseEnv.num_of_states)
@@ -208,7 +208,7 @@ def track_run_SARSA(
 
             total_reward += reward
         reward_list.append(total_reward)
-        list_of_Q.append(Q)
+        list_of_Q.append(Q.copy())
     return list_of_Q, reward_list
 
 def track_SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay) -> tuple[list[np.ndarray], list[float]]:
