@@ -168,7 +168,11 @@ def montecarlo(num_of_episodes, discount):
 
     return policy, values
 
-def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float) -> tuple[list[dict[int, float]], list[float]]:
+def track_montecarlo_prediction(policy: dict[int, int],
+                                num_of_episodes: int = 1000,
+                                gamma: float = 0.5,
+                                convergence_check: bool = False,
+                                convergence_range: int = 100) -> tuple[list[dict[int, float]], list[float]]:
     """
     Estimate state values by averaging returns from sampled episodes under the given policy.
 
@@ -182,6 +186,8 @@ def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, ga
         policy (dict[int, int]): Mapping from state index to selected action.
         num_of_episodes (int): Number of episodes to generate for estimation.
         gamma (float): Discount factor for future returns.
+        convergence_check (bool, optional): Whether to check for convergence. Defaults to False.
+        convergence_range (int, optional): Minimum number of iterations to converge. Defaults to 100.
 
     Returns:
         dict[int, float]: Mapping from state index to estimated value (average return from policy).
@@ -197,6 +203,9 @@ def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, ga
     # Add list to store cumulative reward in
     list_rewards: list[float] = []
     # Generate and process multiple episodes
+    if convergence_check:
+        old_policy: dict[int, int] = {}
+        convergence_counter: int = 0
     for _ in range(num_of_episodes):
         # Generate a single episode following the current policy
         episode = generate_episode(policy)
@@ -231,9 +240,26 @@ def track_montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, ga
                 values[state] = 0.0
         values_list.append(values.copy())
 
+        # Extra convergence check for plotting
+        if convergence_check:
+            # Policy Improvement: Select greedy actions with respect to the estimated values
+            new_policy = control(values_list[-1], gamma)
+            # Convergence check: stop if the policy is stable (unchanged)
+            if policy == old_policy:
+                convergence_counter += 1
+            else:
+                convergence_counter = 0
+            if convergence_counter >= convergence_range:
+                break
+            # Update to the improved policy and continue
+            old_policy = new_policy.copy()
+
     return values_list, list_rewards
 
-def track_montecarlo(num_of_episodes, discount) -> tuple[list[dict[int, float]], list[list[float]]]:
+def track_montecarlo(num_of_episodes: int = 1000,
+                     discount: float = 0.5,
+                     convergence_check: bool = False,
+                     convergence_range: int = 100) -> tuple[list[dict[int, float]], list[list[float]]]:
     """
     Run Monte Carlo control algorithm to find an optimal policy and state-value function.
 
@@ -260,7 +286,9 @@ def track_montecarlo(num_of_episodes, discount) -> tuple[list[dict[int, float]],
     # Alternate between policy evaluation and policy improvement until convergence
     while True:
         # Policy Evaluation: Estimate state values under the current policy using Monte Carlo
-        values, rewards = track_montecarlo_prediction(policy, num_of_episodes, discount)
+        values, rewards = track_montecarlo_prediction(policy, num_of_episodes, discount,
+                                                      convergence_check=convergence_check,
+                                                      convergence_range=convergence_range)
         # Store rewards, values from all episodes in the lists
         cumulative_rewards.append(rewards)
         values_list.extend(values)

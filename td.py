@@ -170,7 +170,9 @@ def track_run_SARSA(
     learning_rate: float,
     discount_rate: float,
     epsilon: float,
-    epsilon_decay: float
+    epsilon_decay: float,
+    convergence_check: bool = False,
+    convergence_range: int = 100
 ) -> tuple[list[np.ndarray], list[float]]:
     """Runs the SARSA learning algorithm and returns Q-values
 
@@ -180,6 +182,8 @@ def track_run_SARSA(
         discount_rate (float): the discount factor
         epsilon (float): the epsilon greedy value
         epsilon_decay (float): the decay rate for epsilon after each episode
+        convergence_check (bool, optional): if True, exits early if policy doesn't change.
+                                            Computes policy each episode to check this.
 
     Returns:
         Cumulative_rewards (list[float]): A list of the cumulative reward per episode
@@ -188,6 +192,11 @@ def track_run_SARSA(
     Q = np.zeros((MouseEnv.num_of_states, MouseEnv.num_of_actions))
     reward_list: list[float] = []
     list_of_Q: list[np.ndarray] = []
+
+    if convergence_check:
+        previous_policy: dict[int, int] = {}
+        convergence_counter: int = 0
+
     for _ in range(num_of_episodes):
         total_reward: float = 0
         state = np.random.randint(0, MouseEnv.num_of_states)
@@ -207,11 +216,33 @@ def track_run_SARSA(
             action = next_action
 
             total_reward += reward
+
+        # compute policy to check convergence
+        if convergence_check:
+            SARSA_policy = np.argmax(Q, axis=1)
+            policy = {}
+            for i, value in enumerate(SARSA_policy):
+                policy[i] = int(value)
+            if policy == previous_policy:
+                convergence_counter += 1
+            else:
+                convergence_counter = 0
+            if convergence_counter >= convergence_range:
+                break
+
+            previous_policy = policy.copy()
+
         reward_list.append(total_reward)
         list_of_Q.append(Q.copy())
     return list_of_Q, reward_list
 
-def track_SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay) -> tuple[list[np.ndarray], list[float]]:
+def track_SARSA(num_of_episodes: int,
+                alpha: float,
+                discount: float,
+                epsilon: float,
+                epsilon_decay: float,
+                convergence_check: bool = False,
+                convergence_range: int = 100) -> tuple[list[np.ndarray], list[float]]:
     """Runs the sarsa learning algorithm and returns a policy
 
     Returns:
@@ -219,5 +250,6 @@ def track_SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay) -> tup
     """
 
     list_of_Q, reward_list = track_run_SARSA(num_of_episodes=num_of_episodes, learning_rate=alpha,
-                                  discount_rate=discount, epsilon=epsilon, epsilon_decay=epsilon_decay)
+                                             discount_rate=discount, epsilon=epsilon, epsilon_decay=epsilon_decay,
+                                             convergence_check=convergence_check, convergence_range=convergence_range)
     return list_of_Q, reward_list

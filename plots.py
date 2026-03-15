@@ -265,7 +265,11 @@ def plot_epsilon_decay(epsilon: float, epsilon_decay:float, episodes: int):
     plt.ylabel("Epsilon")
     plt.grid()
 
-def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, epsilon = 0.5, epsilon_decay = 0.99):
+def plot_cumulative_reward(num_of_episodes = 1000,
+                           discount = 0.5,
+                           alpha = 0.5,
+                           epsilon = 0.5,
+                           epsilon_decay = 0.99):
     """
     Plots the cumulative reward for Monte Carlo and Temporal Difference at three different stages:
     - At the start, where no learning has happened.
@@ -300,9 +304,9 @@ def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, 
 
     fig, axes = plt.subplots(2, 3, figsize=(13, 5))
     colors = ["red", "orange", "green"]
-    mc_labels = ["First iteration",
-                 f"Iteration {midpoint} (midpoint)",
-                 "Last iteration"]
+    mc_labels = ["First 1000 episodes",
+                 f"#{midpoint} 1000 episodes (midpoint)",
+                 "Last 1000 episodes"]
     for ax, reward, color, label in zip(axes[0], mc_rewards, colors, mc_labels):
         ax.scatter(range(len(reward)), reward, color=color, alpha=0.2, label="MC " + label)
         ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward), color=color,
@@ -325,17 +329,17 @@ def plot_cumulative_reward(num_of_episodes = 1000, discount = 0.5, alpha = 0.5, 
     fig.legend()
     fig.show()
 
-def plot_root_mean_squared_errors():
+def plot_root_mean_squared_errors(theta = 1e-5,
+                                  discount = 0.5,
+                                  num_of_episodes = 1000,
+                                  learning_rate = 0.5,
+                                  epsilon = 0.5,
+                                  epsilon_decay = 0.99):
     """
     Plots the root-mean-square error for Monte Carlo and Temporal Difference.
+
     Note: the monte carlo plot is spiky because every batch of 1000 episodes starts with a new value set.
     """
-    theta = 1e-5
-    discount = 0.5
-    num_of_episodes = 1000
-    learning_rate = 0.5
-    epsilon = 0.5
-    epsilon_decay = 0.99
 
     _, dp_values = policy_iteration(theta=theta, gamma=discount)
     dp_values = list(dp_values.values())
@@ -365,6 +369,46 @@ def plot_root_mean_squared_errors():
     fig.legend()
     fig.show()
 
+def plot_sample_efficiency(iterations: int = 10,
+                           discount: float = 0.5,
+                           num_of_episodes: int = 1000,
+                           learning_rate: float = 0.5,
+                           epsilon: float = 0.5,
+                           epsilon_decay: float = 0.99,
+                           convergence_range: int = 100):
+    """
+    Plots the sample efficiency for Monte Carlo and Temporal Difference.
+
+    Note: even just 10 iterations might already take a minute, don't set it too high.
+    """
+
+    mc_episode_numbers: list[int] = []
+    td_episode_numbers: list[int] = []
+    for _ in range(iterations):
+        mc_episode_numbers.append(len(track_montecarlo(num_of_episodes, discount,
+                                                       convergence_check=True,
+                                                       convergence_range=convergence_range)[0]))
+        td_episode_numbers.append(len(track_SARSA(num_of_episodes, learning_rate, discount, epsilon,
+                                                  epsilon_decay, convergence_check=True,
+                                                  convergence_range=convergence_range)[0]))
+
+    mc_episode_number: int = int(sum(mc_episode_numbers) / len(mc_episode_numbers))
+    td_episode_number: int = int(sum(td_episode_numbers) / len(td_episode_numbers))
+
+    plt.bar(["Monte Carlo", "Temporal Difference"], [mc_episode_number, td_episode_number],
+            color = ["blue", "green"],
+            label = [f"MC (mean={mc_episode_number} episodes)", f"TD (mean={td_episode_number} episodes)"])
+
+    plt.ylabel("Episodes")
+    plt.xlabel("Algorithm")
+    plt.title(f"Plot of Sample Efficiency (mean of {iterations} iterations)\n"
+              f"Terminates when policy remains the same in {convergence_range} episodes.")
+    plt.hlines([mc_episode_number, td_episode_number], -1, 2,
+               linestyles="dotted", color=["blue", "green"])
+    plt.legend()
+    plt.show()
+
 if __name__ == "__main__":
-    plot_cumulative_reward()
-    plot_root_mean_squared_errors()
+    #plot_cumulative_reward()
+    #plot_root_mean_squared_errors()
+    plot_sample_efficiency()
