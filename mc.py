@@ -127,6 +127,7 @@ def control(values: dict[int, float], discount: float):
                 best_action = action
 
         # Assign the best action to this state's policy
+        assert best_action is not None
         policy[state] = best_action
 
     return policy
@@ -203,9 +204,8 @@ def track_montecarlo_prediction(policy: dict[int, int],
     # Add list to store cumulative reward in
     list_rewards: list[float] = []
     # Generate and process multiple episodes
-    if convergence_check:
-        old_policy: dict[int, int] = {}
-        convergence_counter: int = 0
+    old_policy: dict[int, int] = {}
+    convergence_counter: int = 0
     for _ in range(num_of_episodes):
         # Generate a single episode following the current policy
         episode = generate_episode(policy)
@@ -245,7 +245,7 @@ def track_montecarlo_prediction(policy: dict[int, int],
             # Policy Improvement: Select greedy actions with respect to the estimated values
             new_policy = control(values_list[-1], gamma)
             # Convergence check: stop if the policy is stable (unchanged)
-            if policy == old_policy:
+            if new_policy == old_policy:
                 convergence_counter += 1
             else:
                 convergence_counter = 0
