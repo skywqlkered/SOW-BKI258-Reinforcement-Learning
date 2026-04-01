@@ -2,9 +2,6 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
 from environment import MouseEnv
-from dp import policy_iteration, value_iteration
-from mc import track_montecarlo
-from td import track_SARSA
 
 # Plotting helper functions
 
@@ -61,6 +58,30 @@ def _plot_value_hist(ax, values: dict, title: str):
     _style_axis(ax, title, "Reward", "Frequency")
 
 
+def _build_value_history(value_snapshots: list[dict[int, float]]) -> dict[int, list[float]]:
+    if not value_snapshots:
+        return {}
+    states = sorted({state for snapshot in value_snapshots for state in snapshot.keys()})
+    return {
+        state: [snapshot.get(state, 0.0) for snapshot in value_snapshots]
+        for state in states
+    }
+
+
+def _compute_delta_history(value_snapshots: list[dict[int, float]]) -> list[float]:
+    if len(value_snapshots) < 2:
+        return []
+
+    delta_history: list[float] = []
+    previous = value_snapshots[0]
+    for current in value_snapshots[1:]:
+        states = set(previous.keys()) | set(current.keys())
+        delta = max(abs(current.get(state, 0.0) - previous.get(state, 0.0)) for state in states)
+        delta_history.append(float(delta))
+        previous = current
+    return delta_history
+
+
 # Algorithm detail plotting function
 
 
@@ -82,10 +103,46 @@ def plot_algorithm_details(
     return fig, axes
 
 
+def plot_montecarlo_details(value_snapshots: list[dict[int, float]]):
+    """Create DP-style detail plots for Monte Carlo value learning."""
+    if not value_snapshots:
+        raise ValueError("Monte Carlo produced no value snapshots")
+
+    delta_history = _compute_delta_history(value_snapshots)
+    value_history = _build_value_history(value_snapshots)
+    final_values = value_snapshots[-1]
+    return plot_algorithm_details(delta_history, value_history, final_values, "Monte Carlo")
+
+
+def plot_td_details(q_tables: list[np.ndarray], algorithm_name: str = "Temporal Difference (SARSA)"):
+    """Create DP-style detail plots for Temporal Difference learning from tracked Q snapshots."""
+    if not q_tables:
+        raise ValueError(f"{algorithm_name} produced no Q-table snapshots")
+
+    value_snapshots = [
+        {state: float(np.max(q_table[state])) for state in range(q_table.shape[0])}
+        for q_table in q_tables
+    ]
+    delta_history = _compute_delta_history(value_snapshots)
+    value_history = _build_value_history(value_snapshots)
+    final_values = value_snapshots[-1]
+    return plot_algorithm_details(delta_history, value_history, final_values, algorithm_name)
+
+
+def plot_qlearning_details(q_tables: list[np.ndarray]):
+    """Create DP-style detail plots for Temporal Difference (Q-learning) learning."""
+    return plot_td_details(q_tables, algorithm_name="Temporal Difference (Q-learning)")
+
+
+def plot_deep_qlearning_details(q_tables: list[np.ndarray]):
+    """Create DP-style detail plots for Deep Q-learning value learning."""
+    return plot_td_details(q_tables, algorithm_name="Deep Q-learning")
+
+
 # Policy plotting function
 
 
-def plot_policy(policy: dict, values: dict | None = None, title: str = "Policy by cheese position"):
+def plot_policy(policy: dict, values: dict | np.ndarray | None = None, title: str = "Policy by cheese position"):
     if isinstance(values, np.ndarray):
         normalized_values = {}
         for state, action in policy.items():
@@ -166,33 +223,37 @@ def plot_policy(policy: dict, values: dict | None = None, title: str = "Policy b
 
 def plot_discount_rate_policy_row(
     discount_rates: list[float],
-    theta: float = 1e-5
+    policies: list[dict],
+    values_list: list[dict | np.ndarray],
+    iterations: list[int] | None = None,
 ):
-    """Plot Value Iteration policies for multiple discount rates side by side.
+    """Plot policies for multiple discount rates side by side.
 
     Renders each policy figure to an image and arranges them in one horizontal row.
     """
     if len(discount_rates) == 0:
         raise ValueError("discount_rates must contain at least one value")
+    if len(policies) != len(discount_rates) or len(values_list) != len(discount_rates):
+        raise ValueError("discount_rates, policies, and values_list must have equal length")
+
+    if iterations is None:
+        iterations = [0] * len(discount_rates)
+    elif len(iterations) != len(discount_rates):
+        raise ValueError("iterations must have the same length as discount_rates")
 
     images: list[np.ndarray] = []
-    iterations: list[int] = []
 
-    for discount in discount_rates:
-        result = value_iteration(
-            theta=theta, gamma=discount, track_history=True)
-        policy, values, delta_history, _ = result  # type: ignore
+    for policy, values in zip(policies, values_list):
         policy_fig, _ = plot_policy(
-            policy, values=values, title=f"Value Iteration (gamma={discount})")
+            policy, values=values, title="")
 
         policy_fig.canvas.draw()
         width, height = policy_fig.canvas.get_width_height()
-        image = np.frombuffer(policy_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape(
+        image = np.frombuffer(policy_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape( # type: ignore
             height, width, 4)  # type: ignore
         plt.close(policy_fig)
 
         images.append(image)
-        iterations.append(len(delta_history))
 
     fig, axes = plt.subplots(1, len(discount_rates),
                              figsize=(8 * len(discount_rates), 7))
@@ -297,10 +358,8 @@ def plot_epsilon_decay(epsilon: float, epsilon_decay: float, episodes: int):
 
 
 def plot_cumulative_reward(num_of_episodes=1000,
-                           discount=0.5,
-                           alpha=0.5,
-                           epsilon=0.5,
-                           epsilon_decay=0.99):
+                           mc_reward_batches: list[list[float]] | None = None,
+                           td_reward_history: list[float] | None = None):
     """
     Plots the cumulative reward for Monte Carlo and Temporal Difference at three different stages:
     - At the start, where no learning has happened.
@@ -316,17 +375,16 @@ def plot_cumulative_reward(num_of_episodes=1000,
         epsilon (float): the degree of exploration [0, 1] -> the higher, the more random.
         epsilon_decay (float): the base of decay of exploration [0, 1] -> the higher, the slower the decay.
     """
-    list_of_rewards: list[list[float]]
-    _, list_of_rewards = track_montecarlo(num_of_episodes, discount)
+    if mc_reward_batches is None or td_reward_history is None:
+        raise ValueError("Pass mc_reward_batches and td_reward_history computed in the notebook")
+    list_of_rewards = mc_reward_batches
 
     midpoint = len(list_of_rewards) // 2
     mc_rewards = [list_of_rewards[0],
                   list_of_rewards[midpoint],
                   list_of_rewards[-1]]
 
-    list_of_rewards: list[float]
-    _, list_of_rewards2 = track_SARSA(
-        num_of_episodes, alpha, discount, epsilon, epsilon_decay)
+    list_of_rewards2 = td_reward_history
 
     first_point = len(list_of_rewards2) // 3
     second_point = 2 * len(list_of_rewards2) // 3
@@ -340,9 +398,9 @@ def plot_cumulative_reward(num_of_episodes=1000,
                  f"#{midpoint} 1000 episodes (midpoint)",
                  "Last 1000 episodes"]
     for ax, reward, color, label in zip(axes[0], mc_rewards, colors, mc_labels):
-        ax.scatter(range(len(reward)), reward, color=color,
+        ax.scatter(range(len(reward)), reward, color=color, # type: ignore
                    alpha=0.2, label="MC " + label)
-        ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward), color=color,
+        ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward), color=color, # type: ignore
                   linestyles="dashed")
         ax.set_ylim(-200, 100)
 
@@ -361,35 +419,32 @@ def plot_cumulative_reward(num_of_episodes=1000,
     fig.supxlabel("Episodes")
     fig.supylabel("Cumulative Reward")
     fig.legend()
-    fig.show()
+    plt.show()
 
 
 def plot_root_mean_squared_errors(theta=1e-5,
-                                  discount=0.5,
-                                  num_of_episodes=1000,
-                                  learning_rate=0.5,
-                                  epsilon=0.5,
-                                  epsilon_decay=0.99):
+                                  dp_values: dict[int, float] | None = None,
+                                  mc_value_snapshots: list[dict[int, float]] | None = None,
+                                  td_qtables: list[np.ndarray] | None = None):
     """
     Plots the root-mean-square error for Monte Carlo and Temporal Difference.
 
     Note: the monte carlo plot is spiky because every batch of 1000 episodes starts with a new value set.
     """
 
-    _, dp_values = policy_iteration(theta=theta, gamma=discount)
-    dp_values = list(dp_values.values())
+    if dp_values is None or mc_value_snapshots is None or td_qtables is None:
+        raise ValueError("Pass dp_values, mc_value_snapshots, and td_qtables computed in the notebook")
+    dp_values_list = list(dp_values.values())
 
-    mc_list_values, _ = track_montecarlo(num_of_episodes, discount)
+    mc_list_values = mc_value_snapshots
     mc_list_values = [list(mc_value.values()) for mc_value in mc_list_values]
 
-    SARSA_qtables, _ = track_SARSA(
-        num_of_episodes, learning_rate, discount, epsilon, epsilon_decay)
     td_list_values = [list(np.max(q_table, axis=1))
-                      for q_table in SARSA_qtables]
+                      for q_table in td_qtables]
 
-    mc_r = [float(np.mean(np.power(np.subtract(dp_values, mc_values), 2)))
+    mc_r = [float(np.mean(np.power(np.subtract(dp_values_list, mc_values), 2)))
             for mc_values in mc_list_values]
-    td_r = [float(np.mean(np.power(np.subtract(dp_values, td_values), 2)))
+    td_r = [float(np.mean(np.power(np.subtract(dp_values_list, td_values), 2)))
             for td_values in td_list_values]
 
     shared_max: float = max(max(mc_r), max(td_r))
@@ -405,15 +460,12 @@ def plot_root_mean_squared_errors(theta=1e-5,
     fig.supxlabel("Episodes")
     fig.supylabel("Mean squared error")
     fig.legend()
-    fig.show()
+    plt.show()
 
 
-def plot_sample_efficiency(iterations: int = 10,
-                           discount: float = 0.5,
-                           num_of_episodes: int = 1000,
-                           learning_rate: float = 0.5,
-                           epsilon: float = 0.5,
-                           epsilon_decay: float = 0.99,
+def plot_sample_efficiency(iterations: int = 5,
+                           mc_episode_numbers: list[int] | None = None,
+                           td_episode_numbers: list[int] | None = None,
                            convergence_range: int = 100):
     """
     Plots the sample efficiency for Monte Carlo and Temporal Difference.
@@ -421,15 +473,15 @@ def plot_sample_efficiency(iterations: int = 10,
     Note: even just 10 iterations might already take a minute, don't set it too high.
     """
 
-    mc_episode_numbers: list[int] = []
-    td_episode_numbers: list[int] = []
-    for _ in range(iterations):
-        mc_episode_numbers.append(len(track_montecarlo(num_of_episodes, discount,
-                                                       convergence_check=True,
-                                                       convergence_range=convergence_range)[0]))
-        td_episode_numbers.append(len(track_SARSA(num_of_episodes, learning_rate, discount, epsilon,
-                                                  epsilon_decay, convergence_check=True,
-                                                  convergence_range=convergence_range)[0]))
+    if mc_episode_numbers is None or td_episode_numbers is None:
+        raise ValueError("Pass mc_episode_numbers and td_episode_numbers computed in the notebook")
+
+    iterations = min(len(mc_episode_numbers), len(td_episode_numbers))
+    if iterations == 0:
+        raise ValueError("mc_episode_numbers and td_episode_numbers must contain at least one value")
+
+    mc_episode_numbers = mc_episode_numbers[:iterations]
+    td_episode_numbers = td_episode_numbers[:iterations]
 
     mc_episode_number: int = int(
         sum(mc_episode_numbers) / len(mc_episode_numbers))
@@ -448,9 +500,3 @@ def plot_sample_efficiency(iterations: int = 10,
                linestyles="dotted", color=["blue", "green"])
     plt.legend()
     plt.show()
-
-
-if __name__ == "__main__":
-    # plot_cumulative_reward()
-    # plot_root_mean_squared_errors()
-    plot_sample_efficiency()

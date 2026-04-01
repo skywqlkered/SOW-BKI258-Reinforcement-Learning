@@ -3,7 +3,13 @@ from environment import MouseEnv
 import random
 
 
-def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float):
+def _montecarlo_prediction_core(policy: dict[int, int],
+                                num_of_episodes: int,
+                                gamma: float,
+                                track_history: bool = False,
+                                track_rewards: bool = False,
+                                convergence_check: bool = False,
+                                convergence_range: int = 100) -> tuple[dict[int, float], list[dict[int, float]], list[float]]:
     """
     Estimate state values by averaging returns from sampled episodes under the given policy.
 
@@ -26,12 +32,19 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
         state: [] for state in range(MouseEnv.num_of_states)
     }
 
+    values: dict[int, float] = {}
+    values_list: list[dict[int, float]] = []
+    list_rewards: list[float] = []
+    old_policy: dict[int, int] = {}
+    convergence_counter: int = 0
+
     # Generate and process multiple episodes
     for _ in range(num_of_episodes):
         # Generate a single episode following the current policy
         episode = generate_episode(policy)
         # Initialize the return accumulator
         g = 0
+        cumulative_reward = 0
 
         # Track visited states for first-visit Monte Carlo
         visited_states = [state[0] for state in episode]
@@ -40,21 +53,46 @@ def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: f
         while episode:
             # Pop the last (state, action, reward) tuple from the episode
             state, action, reward = episode.pop()
+            cumulative_reward += reward
             # Update return using discounted reward: G = R + γ*G
             g = gamma * g + reward
             # For first-visit only: store the return if this is the first visit to the state in this episode
             if state not in visited_states[: len(episode)]:
                 returns[state].append(g)
 
-    # Compute state values as the average of collected returns
-    values: dict[int, float] = {}
-    for state in range(MouseEnv.num_of_states):
-        if returns[state]:
-            # Average the returns collected for this state
-            values[state] = sum(returns[state]) / len(returns[state])
-        else:
-            # Unvisited states have zero value estimate
-            values[state] = 0.0
+        if track_rewards:
+            list_rewards.append(cumulative_reward)
+
+        # Compute state values as the average of collected returns
+        for state in range(MouseEnv.num_of_states):
+            if returns[state]:
+                # Average the returns collected for this state
+                values[state] = sum(returns[state]) / len(returns[state])
+            else:
+                # Unvisited states have zero value estimate
+                values[state] = 0.0
+
+        if track_history:
+            values_list.append(values.copy())
+
+        if convergence_check:
+            # Policy Improvement: Select greedy actions with respect to the estimated values
+            new_policy = control(values, gamma)
+            # Convergence check: stop if the policy is stable (unchanged)
+            if new_policy == old_policy:
+                convergence_counter += 1
+            else:
+                convergence_counter = 0
+            if convergence_counter >= convergence_range:
+                break
+            # Update to the improved policy and continue
+            old_policy = new_policy.copy()
+
+    return values, values_list, list_rewards
+
+
+def montecarlo_prediction(policy: dict[int, int], num_of_episodes: int, gamma: float):
+    values, _, _ = _montecarlo_prediction_core(policy, num_of_episodes, gamma)
     return values
 
 
@@ -133,7 +171,12 @@ def control(values: dict[int, float], discount: float):
     return policy
 
 
-def montecarlo(num_of_episodes, discount):
+def montecarlo(num_of_episodes,
+               discount,
+               track_history: bool = False,
+               track_rewards: bool = False,
+               convergence_check: bool = False,
+               convergence_range: int = 100):
     """
     Run Monte Carlo control algorithm to find an optimal policy and state-value function.
 
@@ -155,10 +198,26 @@ def montecarlo(num_of_episodes, discount):
         for state in range(MouseEnv.num_of_states)
     }
 
+    cumulative_rewards: list[list[float]] = []
+    values_history: list[dict[int, float]] = []
+
     # Alternate between policy evaluation and policy improvement until convergence
     while True:
         # Policy Evaluation: Estimate state values under the current policy using Monte Carlo
-        values = montecarlo_prediction(policy, num_of_episodes, discount)
+        values, tracked_values, tracked_rewards = _montecarlo_prediction_core(
+            policy,
+            num_of_episodes,
+            discount,
+            track_history=track_history,
+            track_rewards=track_rewards,
+            convergence_check=convergence_check,
+            convergence_range=convergence_range,
+        )
+        if track_history:
+            values_history.extend(tracked_values)
+        if track_rewards:
+            cumulative_rewards.append(tracked_rewards)
+
         # Policy Improvement: Select greedy actions with respect to the estimated values
         new_policy = control(values, discount)
         # Convergence check: stop if the policy is stable (unchanged)
@@ -167,136 +226,7 @@ def montecarlo(num_of_episodes, discount):
         # Update to the improved policy and continue
         policy = new_policy.copy()
 
+    if track_history or track_rewards:
+        return policy, values, values_history, cumulative_rewards
+
     return policy, values
-
-def track_montecarlo_prediction(policy: dict[int, int],
-                                num_of_episodes: int = 1000,
-                                gamma: float = 0.5,
-                                convergence_check: bool = False,
-                                convergence_range: int = 100) -> tuple[list[dict[int, float]], list[float]]:
-    """
-    Estimate state values by averaging returns from sampled episodes under the given policy.
-
-    For each episode:
-    - Generate an episode using the policy from a random starting state
-    - For each state in the episode, calculate the return (discounted cumulative reward)
-    - Track the return for each state-visitation
-    - After all episodes, estimate each state's value as the average of all returns for that state
-
-    Args:
-        policy (dict[int, int]): Mapping from state index to selected action.
-        num_of_episodes (int): Number of episodes to generate for estimation.
-        gamma (float): Discount factor for future returns.
-        convergence_check (bool, optional): Whether to check for convergence. Defaults to False.
-        convergence_range (int, optional): Minimum number of iterations to converge. Defaults to 100.
-
-    Returns:
-        dict[int, float]: Mapping from state index to estimated value (average return from policy).
-        if track_reward:
-        list[float]: Cumulative reward for each episode.
-    """
-    # Initialize a dictionary to store all returns (G) for each state across episodes
-    returns: dict[int, list[float]] = {
-        state: [] for state in range(MouseEnv.num_of_states)
-    }
-    values: dict[int, float] = {}
-    values_list: list[dict[int, float]] = []
-    # Add list to store cumulative reward in
-    list_rewards: list[float] = []
-    # Generate and process multiple episodes
-    old_policy: dict[int, int] = {}
-    convergence_counter: int = 0
-    for _ in range(num_of_episodes):
-        # Generate a single episode following the current policy
-        episode = generate_episode(policy)
-        # Initialize the return accumulator
-        g = 0
-        # Add variable to track total reward
-        cumulative_reward = 0
-        # Track visited states for first-visit Monte Carlo
-        visited_states = [state[0] for state in episode]
-
-        # Work backward through the episode to compute returns (backward iteration for discount efficiency)
-        while episode:
-            # Pop the last (state, action, reward) tuple from the episode
-            state, action, reward = episode.pop()
-            # Update the total reward
-            cumulative_reward += reward
-            # Update return using discounted reward: G = R + γ*G
-            g = gamma * g + reward
-            # For first-visit only: store the return if this is the first visit to the state in this episode
-            if state not in visited_states[: len(episode)]:
-                returns[state].append(g)
-        # Add reward to rewards list
-        list_rewards.append(cumulative_reward)
-
-        # Compute state values as the average of collected returns
-        for state in range(MouseEnv.num_of_states):
-            if returns[state]:
-                # Average the returns collected for this state
-                values[state] = sum(returns[state]) / len(returns[state])
-            else:
-                # Unvisited states have zero value estimate
-                values[state] = 0.0
-        values_list.append(values.copy())
-
-        # Extra convergence check for plotting
-        if convergence_check:
-            # Policy Improvement: Select greedy actions with respect to the estimated values
-            new_policy = control(values_list[-1], gamma)
-            # Convergence check: stop if the policy is stable (unchanged)
-            if new_policy == old_policy:
-                convergence_counter += 1
-            else:
-                convergence_counter = 0
-            if convergence_counter >= convergence_range:
-                break
-            # Update to the improved policy and continue
-            old_policy = new_policy.copy()
-
-    return values_list, list_rewards
-
-def track_montecarlo(num_of_episodes: int = 1000,
-                     discount: float = 0.5,
-                     convergence_check: bool = False,
-                     convergence_range: int = 100) -> tuple[list[dict[int, float]], list[list[float]]]:
-    """
-    Run Monte Carlo control algorithm to find an optimal policy and state-value function.
-
-    Alternates between policy evaluation (via Monte Carlo prediction) and policy improvement
-    until the policy converges (remains unchanged across an iteration).
-
-    Args:
-        num_of_episodes (int): Number of episodes to generate during each policy evaluation step.
-        discount (float): Discount factor for future returns.
-
-    Returns:
-        tuple:
-            - list[dict[int, float]]: All state-value function mappings from state index to estimated value.
-            - list[list[float]]: Final cumulative reward for each episode.
-    """
-    # Initialize policy randomly for all states
-    policy = {
-        state: random.randint(0, MouseEnv.num_of_actions - 1)
-        for state in range(MouseEnv.num_of_states)
-    }
-
-    cumulative_rewards: list[list[float]] = []
-    values_list: list[dict[int, float]] = []
-    # Alternate between policy evaluation and policy improvement until convergence
-    while True:
-        # Policy Evaluation: Estimate state values under the current policy using Monte Carlo
-        values, rewards = track_montecarlo_prediction(policy, num_of_episodes, discount,
-                                                      convergence_check=convergence_check,
-                                                      convergence_range=convergence_range)
-        # Store rewards, values from all episodes in the lists
-        cumulative_rewards.append(rewards)
-        values_list.extend(values)
-        # Policy Improvement: Select greedy actions with respect to the estimated values
-        new_policy = control(values[-1], discount)
-        # Convergence check: stop if the policy is stable (unchanged)
-        if new_policy == policy:
-            break
-        # Update to the improved policy and continue
-        policy = new_policy.copy()
-    return values_list, cumulative_rewards
