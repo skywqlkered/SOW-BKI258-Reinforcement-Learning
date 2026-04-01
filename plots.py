@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
 from environment import MouseEnv
-from dp import policy_iteration
+from dp import policy_iteration, value_iteration
 from mc import track_montecarlo
 from td import track_SARSA
 
@@ -50,18 +50,10 @@ def _plot_delta(ax, history: list[float], title: str):
 def _plot_value_history(ax, value_history: dict[int, list[float]], title: str):
     for history in value_history.values():
         ax.plot(range(len(history)), history, alpha=0.75, linewidth=1)
-    unique_trajectories = len(
-        {tuple(np.round(history, 10)) for history in value_history.values()}
-    )
+    unique_trajectories = len({tuple(np.round(history, 10)) for history in value_history.values()})
     total_tracked = len(value_history)
     _style_axis(ax, title, "Iteration", "Value")
-    ax.text(
-        0.02,
-        0.98,
-        f"states: {total_tracked}, unique trajectories: {unique_trajectories}",
-        transform=ax.transAxes,
-        va="top",
-    )
+    ax.text(0.02, 0.98, f"states: {total_tracked}, unique trajectories: {unique_trajectories}", transform=ax.transAxes, va="top",)
 
 
 def _plot_value_hist(ax, values: dict, title: str):
@@ -79,8 +71,10 @@ def plot_algorithm_details(
     algorithm_name: str,
 ):
     fig, axes = plt.subplots(1, 3, figsize=(20, 5))
-    _plot_delta(axes[0], delta_history, rf"{algorithm_name}: $\Delta$ per iteration")
-    _plot_value_history(axes[1], value_history, f"{algorithm_name}: value history")
+    _plot_delta(axes[0], delta_history,
+                rf"{algorithm_name}: $\Delta$ per iteration")
+    _plot_value_history(axes[1], value_history,
+                        f"{algorithm_name}: value history")
     _plot_value_hist(
         axes[2], values, f"{algorithm_name}: distribution of state rewards"
     )
@@ -91,9 +85,7 @@ def plot_algorithm_details(
 # Policy plotting function
 
 
-def plot_policy(
-    policy: dict, values: dict | None = None, title: str = "Policy by cheese position"
-):
+def plot_policy(policy: dict, values: dict | None = None, title: str = "Policy by cheese position"):
     if isinstance(values, np.ndarray):
         normalized_values = {}
         for state, action in policy.items():
@@ -104,7 +96,8 @@ def plot_policy(
     ARROWS = {0: "↑", 1: "→", 2: "↓", 3: "←"}
     rows, cols = MouseEnv.rows, MouseEnv.cols
     position_policy = policy_index_to_positions(policy, rows, cols)
-    fig, axes = plt.subplots(rows, cols, figsize=(16, 10), constrained_layout=True)
+    fig, axes = plt.subplots(rows, cols, figsize=(
+        16, 10), constrained_layout=True)
 
     cmap = mcolors.LinearSegmentedColormap.from_list(
         "value_map", ["red", "yellow", "green"]
@@ -122,15 +115,7 @@ def plot_policy(
         # Terminal cheese locations are end states, so no action arrows are shown
         if c_col == 0 or c_row == rows - 1:
             ax.add_patch(plt.Rectangle((c_col - 0.5, c_row - 0.5), 1, 1, facecolor="lightpink"))  # type: ignore
-            ax.text(
-                c_col,
-                c_row,
-                "C",
-                ha="center",
-                va="center",
-                fontsize=20,
-                fontweight="bold",
-            )
+            ax.text(c_col, c_row, "C", ha="center", va="center", fontsize=20, fontweight="bold")
             continue
 
         # Draw colored backgrounds for each mouse position
@@ -176,6 +161,49 @@ def plot_policy(
         )
 
     fig.suptitle(title)
+    return fig, axes
+
+
+def plot_discount_rate_policy_row(
+    discount_rates: list[float],
+    theta: float = 1e-5
+):
+    """Plot Value Iteration policies for multiple discount rates side by side.
+
+    Renders each policy figure to an image and arranges them in one horizontal row.
+    """
+    if len(discount_rates) == 0:
+        raise ValueError("discount_rates must contain at least one value")
+
+    images: list[np.ndarray] = []
+    iterations: list[int] = []
+
+    for discount in discount_rates:
+        result = value_iteration(
+            theta=theta, gamma=discount, track_history=True)
+        policy, values, delta_history, _ = result  # type: ignore
+        policy_fig, _ = plot_policy(
+            policy, values=values, title=f"Value Iteration (gamma={discount})")
+
+        policy_fig.canvas.draw()
+        width, height = policy_fig.canvas.get_width_height()
+        image = np.frombuffer(policy_fig.canvas.buffer_rgba(), dtype=np.uint8).reshape(
+            height, width, 4)  # type: ignore
+        plt.close(policy_fig)
+
+        images.append(image)
+        iterations.append(len(delta_history))
+
+    fig, axes = plt.subplots(1, len(discount_rates),
+                             figsize=(8 * len(discount_rates), 7))
+    axes_array = np.atleast_1d(axes).ravel()
+
+    for ax, discount, image, n_iter in zip(axes_array, discount_rates, images, iterations):
+        ax.imshow(image)
+        ax.set_title(f"gamma = {discount} | iters = {n_iter}")
+        ax.axis("off")
+
+    plt.tight_layout()
     return fig, axes
 
 
@@ -256,20 +284,23 @@ def plot_dp_comparisons(
     plt.tight_layout()
     return fig, axes
 
-def plot_epsilon_decay(epsilon: float, epsilon_decay:float, episodes: int):
+
+def plot_epsilon_decay(epsilon: float, epsilon_decay: float, episodes: int):
     X = np.arange(0, episodes)
     y = epsilon * epsilon_decay**X
     plt.plot(X, y)
-    plt.title(f"Epsilon over {episodes} episodes, with a decay rate of {epsilon_decay}")
+    plt.title(
+        f"Epsilon over {episodes} episodes, with a decay rate of {epsilon_decay}")
     plt.xlabel("Episode")
     plt.ylabel("Epsilon")
     plt.grid()
 
-def plot_cumulative_reward(num_of_episodes = 1000,
-                           discount = 0.5,
-                           alpha = 0.5,
-                           epsilon = 0.5,
-                           epsilon_decay = 0.99):
+
+def plot_cumulative_reward(num_of_episodes=1000,
+                           discount=0.5,
+                           alpha=0.5,
+                           epsilon=0.5,
+                           epsilon_decay=0.99):
     """
     Plots the cumulative reward for Monte Carlo and Temporal Difference at three different stages:
     - At the start, where no learning has happened.
@@ -290,17 +321,18 @@ def plot_cumulative_reward(num_of_episodes = 1000,
 
     midpoint = len(list_of_rewards) // 2
     mc_rewards = [list_of_rewards[0],
-               list_of_rewards[midpoint],
-               list_of_rewards[-1]]
+                  list_of_rewards[midpoint],
+                  list_of_rewards[-1]]
 
     list_of_rewards: list[float]
-    _, list_of_rewards2 = track_SARSA(num_of_episodes, alpha, discount, epsilon, epsilon_decay)
+    _, list_of_rewards2 = track_SARSA(
+        num_of_episodes, alpha, discount, epsilon, epsilon_decay)
 
     first_point = len(list_of_rewards2) // 3
     second_point = 2 * len(list_of_rewards2) // 3
     td_rewards = [list_of_rewards2[:first_point],
-                list_of_rewards2[first_point: second_point],
-                list_of_rewards2[second_point:]]
+                  list_of_rewards2[first_point: second_point],
+                  list_of_rewards2[second_point:]]
 
     fig, axes = plt.subplots(2, 3, figsize=(13, 5))
     colors = ["red", "orange", "green"]
@@ -308,33 +340,36 @@ def plot_cumulative_reward(num_of_episodes = 1000,
                  f"#{midpoint} 1000 episodes (midpoint)",
                  "Last 1000 episodes"]
     for ax, reward, color, label in zip(axes[0], mc_rewards, colors, mc_labels):
-        ax.scatter(range(len(reward)), reward, color=color, alpha=0.2, label="MC " + label)
+        ax.scatter(range(len(reward)), reward, color=color,
+                   alpha=0.2, label="MC " + label)
         ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward), color=color,
-                       linestyles="dashed")
+                  linestyles="dashed")
         ax.set_ylim(-200, 100)
-
 
     td_labels = [f"First {first_point} episodes",
                  f"{first_point}-{second_point} episodes",
                  f"{second_point}-{len(list_of_rewards2)} episodes"]
     for ax, reward, color, label in zip(axes[1], td_rewards, colors, td_labels):
-        ax.scatter(range(len(reward)), reward, color=color, alpha=0.2, label="TD " + label)
+        ax.scatter(range(len(reward)), reward, color=color,
+                   alpha=0.2, label="TD " + label)
         ax.hlines(sum(reward) / len(reward), xmin=0, xmax=len(reward),
                   color=color, linestyles="dashed")
         ax.set_ylim(-200, 100)
 
-    fig.suptitle("Cumulative Reward for episodes from the MC and TD Algorithms")
+    fig.suptitle(
+        "Cumulative Reward for episodes from the MC and TD Algorithms")
     fig.supxlabel("Episodes")
     fig.supylabel("Cumulative Reward")
     fig.legend()
     fig.show()
 
-def plot_root_mean_squared_errors(theta = 1e-5,
-                                  discount = 0.5,
-                                  num_of_episodes = 1000,
-                                  learning_rate = 0.5,
-                                  epsilon = 0.5,
-                                  epsilon_decay = 0.99):
+
+def plot_root_mean_squared_errors(theta=1e-5,
+                                  discount=0.5,
+                                  num_of_episodes=1000,
+                                  learning_rate=0.5,
+                                  epsilon=0.5,
+                                  epsilon_decay=0.99):
     """
     Plots the root-mean-square error for Monte Carlo and Temporal Difference.
 
@@ -347,8 +382,10 @@ def plot_root_mean_squared_errors(theta = 1e-5,
     mc_list_values, _ = track_montecarlo(num_of_episodes, discount)
     mc_list_values = [list(mc_value.values()) for mc_value in mc_list_values]
 
-    SARSA_qtables, _ = track_SARSA(num_of_episodes, learning_rate, discount, epsilon, epsilon_decay)
-    td_list_values = [list(np.max(q_table, axis=1)) for q_table in SARSA_qtables]
+    SARSA_qtables, _ = track_SARSA(
+        num_of_episodes, learning_rate, discount, epsilon, epsilon_decay)
+    td_list_values = [list(np.max(q_table, axis=1))
+                      for q_table in SARSA_qtables]
 
     mc_r = [float(np.mean(np.power(np.subtract(dp_values, mc_values), 2)))
             for mc_values in mc_list_values]
@@ -361,13 +398,15 @@ def plot_root_mean_squared_errors(theta = 1e-5,
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     axes[0].plot(range(len(mc_r)), mc_r, color="blue", label="Monte Carlo")
     axes[0].set_ylim(0, shared_max)
-    axes[1].plot(range(len(td_r)), td_r, color="green", label="Temporal Difference")
+    axes[1].plot(range(len(td_r)), td_r, color="green",
+                 label="Temporal Difference")
     axes[1].set_ylim(0, shared_max)
     fig.suptitle("Mean squared error compared to policy iteration")
     fig.supxlabel("Episodes")
     fig.supylabel("Mean squared error")
     fig.legend()
     fig.show()
+
 
 def plot_sample_efficiency(iterations: int = 10,
                            discount: float = 0.5,
@@ -392,12 +431,14 @@ def plot_sample_efficiency(iterations: int = 10,
                                                   epsilon_decay, convergence_check=True,
                                                   convergence_range=convergence_range)[0]))
 
-    mc_episode_number: int = int(sum(mc_episode_numbers) / len(mc_episode_numbers))
-    td_episode_number: int = int(sum(td_episode_numbers) / len(td_episode_numbers))
+    mc_episode_number: int = int(
+        sum(mc_episode_numbers) / len(mc_episode_numbers))
+    td_episode_number: int = int(
+        sum(td_episode_numbers) / len(td_episode_numbers))
 
     plt.bar(["Monte Carlo", "Temporal Difference"], [mc_episode_number, td_episode_number],
-            color = ["blue", "green"],
-            label = [f"MC (mean={mc_episode_number} episodes)", f"TD (mean={td_episode_number} episodes)"])
+            color=["blue", "green"],
+            label=[f"MC (mean={mc_episode_number} episodes)", f"TD (mean={td_episode_number} episodes)"])
 
     plt.ylabel("Episodes")
     plt.xlabel("Algorithm")
@@ -408,7 +449,8 @@ def plot_sample_efficiency(iterations: int = 10,
     plt.legend()
     plt.show()
 
+
 if __name__ == "__main__":
-    #plot_cumulative_reward()
-    #plot_root_mean_squared_errors()
+    # plot_cumulative_reward()
+    # plot_root_mean_squared_errors()
     plot_sample_efficiency()
